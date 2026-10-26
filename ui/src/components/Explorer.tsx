@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, FilePlus, FolderPlus, Hammer, ListCollapse, Package, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FilePlus, FolderPlus, Hammer, ListCollapse, Package, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -211,6 +211,14 @@ export function Explorer() {
         <button className="icon-btn sm" title="New folder" onClick={() => void createItem(selectedDir(selected, rows, root), 'folder')}>
           <FolderPlus size={15} />
         </button>
+        <button
+          className={`icon-btn sm${showIgnored ? ' on' : ''}`}
+          title={showIgnored ? 'Show All Files: on (bin, obj, .git, .vs, node_modules are shown)' : 'Show All Files (also bin, obj, .git, .vs, node_modules)'}
+          aria-pressed={showIgnored}
+          onClick={() => useSettings.getState().update({ showIgnored: !showIgnored })}
+        >
+          {showIgnored ? <Eye size={15} /> : <EyeOff size={15} />}
+        </button>
         <button className="icon-btn sm" title="Refresh" onClick={() => Object.keys(useExplorer.getState().children).forEach((d) => void useExplorer.getState().load(d))}>
           <RefreshCw size={14} />
         </button>
@@ -230,7 +238,7 @@ export function Explorer() {
               role="treeitem"
               aria-expanded={entry.isDir ? open : undefined}
               aria-selected={samePath(selected, entry.path)}
-              className={`tree-row${samePath(selected, entry.path) ? ' selected' : ''}`}
+              className={`tree-row${samePath(selected, entry.path) ? ' selected' : ''}${showIgnored && isExcluded(root, entry.path) ? ' excluded' : ''}`}
               style={{ paddingLeft: 6 + depth * 14 }}
               onClick={() => activate(entry, false)}
               onDoubleClick={() => !entry.isDir && activate(entry, true)}
@@ -254,6 +262,10 @@ export function Explorer() {
     </div>
   );
 }
+
+/** Folders Show All Files reveals (the engine's PathUtil.IgnoredDirs); they and everything under them are dimmed. */
+const IGNORED = new Set(['bin', 'obj', '.git', '.vs', '.idea', 'node_modules', '.vscode', 'packages', 'testresults', '.kod']);
+const isExcluded = (root: string, path: string) => relative(root, path).split(/[\\/]/).some((seg) => IGNORED.has(seg.toLowerCase()));
 
 function selectedDir(selected: string | null, rows: Row[], root: string): string {
   const row = rows.find((r) => samePath(r.entry.path, selected));

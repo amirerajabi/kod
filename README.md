@@ -46,6 +46,8 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Unstage; diff tabs (side by side or unified); added / modified / deleted markers in the gutter while you type.
 - Annotate (blame), Git colours on file names, a branches popup (checkout, new, delete, pull, push, fetch) and a
   Git log window (Alt+9) with commit details and per-file diffs.
+- Inline blame of the caret line, like GitToolBox: author, time ago and commit message at the end of the line.
+- Git › Manage Remotes: add, rename, change the URL of and remove remotes.
 
 **Unit tests**
 - Test explorer (Alt+8) for xUnit, NUnit and MSTest, discovered by Roslyn: run all / failed / a namespace, class or
@@ -69,14 +71,16 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - Clickable `file(line,col)` locations in output; build errors flow into the **Problems** window, together with
   live diagnostics and an on-demand **Analyze solution**.
 - **Explorer** with new class / interface / record / enum / file / folder, rename, delete (Recycle Bin on
-  Windows), copy path, reveal, open in terminal, run/build/test project, set run configuration.
+  Windows), copy path, reveal, open in terminal, run/build/test project, set run configuration; **Show All Files**
+  (the eye button) also lists bin, obj, .git, .vs and node_modules, dimmed.
 - **Find in files** with regex, case, whole word, include globs and replace all.
 - **NuGet** tool window (Alt+Shift+7, like Rider's): Browse / Installed / Updates across the solution, search on
   every enabled v3 feed (or one), prerelease toggle; package details (versions, description, license, project link,
   downloads, dependencies per framework, deprecation and vulnerability warnings); every project with its installed
   version and install / upgrade / remove buttons, "Install to all", "Update all"; central package management
   versions; a Sources tab (enable / disable feeds) and Restore.
-- **Terminal** (cmd / zsh / bash) in the tool window.
+- **Terminal** (Alt+F12): a real pseudo console (ConPTY on Windows, a pty on macOS / Linux) with xterm.js — type
+  at the prompt, PowerShell / zsh / bash line editing, history, Ctrl+C, colours, several tabs.
 - **Search Everywhere** (Shift Shift): files, `>` actions, `#` symbols, `:` line.
 - Light / dark / system theme, settings (font, ligatures, tabs, wrap, minimap, auto save, format on save, …),
   keyboard shortcut sheet.

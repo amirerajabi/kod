@@ -66,6 +66,7 @@ services.AddSingleton<DebugAdapter>();
 services.AddSingleton<DebugService>();
 services.AddSingleton<Kod.Engine.Git.GitService>();
 services.AddSingleton<Kod.Engine.Testing.TestService>();
+services.AddSingleton<TerminalService>();
 services.AddHostedService<ParentWatchdog>();
 
 var app = builder.Build();
@@ -114,6 +115,7 @@ _ = Task.Run(() =>
 app.Lifetime.ApplicationStopping.Register(() =>
 {
     app.Services.GetRequiredService<DebugService>().Dispose();
+    app.Services.GetRequiredService<TerminalService>().Dispose();
     processes.Dispose();
     workspace.Dispose();
 });

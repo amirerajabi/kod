@@ -8,7 +8,7 @@ import { debugActive, startDebugging, step, stopDebugging, useDebug } from '../s
 import { isMac } from '../platform';
 import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
-import { dotnetBuild, dotnetRun, runningOf, startTerminal, stopAll } from '../store/procs';
+import { dotnetBuild, dotnetRun, startTerminal, stopAll } from '../store/procs';
 import { effectiveTheme, useSettings } from '../store/settings';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
@@ -19,6 +19,7 @@ import { showBranchMenu } from '../components/GitBranchMenu';
 import { toggleBlame } from '../editor/gitEditor';
 import { gitFetch, gitPull, gitPush, initRepository, newBranch, openDiff, rollback } from '../store/git';
 import { runFailed, runTests, useTests } from '../store/tests';
+import { useTerminals } from '../store/terminals';
 import { samePath } from '../lib/paths';
 
 function runCurrentFileTests(): void {
@@ -122,6 +123,8 @@ export const COMMANDS: Command[] = [
   { id: 'git.branches', title: 'Branches…', category: 'Git', keys: ['Ctrl+Shift+`'], run: needsRoot(() => { const el = document.querySelector<HTMLElement>('.statusbar button[title="Git branches"]'); if (el) void showBranchMenu(el, true); }), global: true },
   { id: 'git.diff', title: 'Show Diff with HEAD', category: 'Git', run: () => { const f = currentFilePath(); if (f) openDiff(f); } },
   { id: 'git.annotate', title: 'Annotate with Git Blame', category: 'Git', run: () => toggleBlame() },
+  { id: 'git.inlineBlame', title: 'Toggle Inline Blame (current line)', category: 'Git', run: () => useSettings.getState().update({ inlineBlame: !useSettings.getState().settings.inlineBlame }) },
+  { id: 'git.remotes', title: 'Manage Remotes…', category: 'Git', run: needsRoot(() => useUi.getState().set({ remotesOpen: true })) },
   { id: 'git.rollback', title: 'Rollback Changes in This File…', category: 'Git', run: () => { const f = currentFilePath(); if (f) void rollback([f]); } },
   { id: 'git.init', title: 'Create Git Repository', category: 'Git', run: needsRoot(() => initRepository()) },
 
@@ -160,7 +163,7 @@ function newItemDir(): string {
 
 function openTerminal(): void {
   useUi.getState().showBottom('terminal');
-  if (runningOf('terminal').length === 0) void startTerminal();
+  if (useTerminals.getState().terms.length === 0) void startTerminal();
 }
 
 async function analyzeSolution(): Promise<void> {
@@ -240,6 +243,11 @@ export function installKeys(): () => void {
     const target = e.target as HTMLElement | null;
     const inEditor = !!target?.closest?.('.monaco-editor');
     const inField = !inEditor && !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+    // the terminal owns Ctrl+letter (Ctrl+C, Ctrl+R, Ctrl+P…) and chord prefixes, as Rider's "override IDE shortcuts"
+    if (target?.closest?.('.xterm') && (/^Ctrl\+[^+]$/.test(chord) || pendingChord || COMMANDS.some((c) => c.keys?.some((k) => k.startsWith(`${chord} `))))) {
+      pendingChord = null;
+      return;
+    }
     // dialogs own their keys
     if (document.querySelector('.overlay') && !['Escape'].includes(e.key) && !useUi.getState().palette) {
       if (!(chord === 'Ctrl+S')) return;

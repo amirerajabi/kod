@@ -51,6 +51,7 @@ interface UiState extends Layout {
   paletteSeed: string;
   settingsOpen: boolean;
   newProjectOpen: boolean;
+  remotesOpen: boolean;
   shortcutsOpen: boolean;
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
@@ -86,6 +87,7 @@ export const useUi = create<UiState>((set, get) => {
     paletteSeed: '',
     settingsOpen: false,
     newProjectOpen: false,
+    remotesOpen: false,
     shortcutsOpen: false,
     prompt: null,
     confirm: null,

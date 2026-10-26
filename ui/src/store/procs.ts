@@ -228,11 +228,8 @@ export function runningOf(group: ProcGroup): ProcView[] {
   return Object.values(useProcs.getState().procs).filter((p) => groupOf(p.info.kind) === group && p.info.exitCode == null);
 }
 
-export async function startTerminal(cwd?: string): Promise<ProcDto | null> {
-  const meta = useWorkspace.getState().meta;
-  const shell = meta?.shell ?? (platform.os === 'win32' ? 'cmd.exe' : '/bin/bash');
-  const isCmd = /cmd(\.exe)?$/i.test(shell);
-  const dir = cwd ?? useWorkspace.getState().ws.root ?? meta?.home;
-  useUi.getState().showBottom('terminal');
-  return useProcs.getState().start({ kind: 'terminal', title: basename(dir ?? 'Terminal') || 'Terminal', file: shell, args: isCmd ? ['/Q', '/K', 'prompt $P$G$S'] : ['-i'], cwd: dir });
+/** Opens a new terminal (a real shell in the Terminal tool window). */
+export async function startTerminal(cwd?: string): Promise<void> {
+  const { newTerminal } = await import('./terminals');
+  await newTerminal(cwd);
 }

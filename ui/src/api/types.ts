@@ -191,4 +191,6 @@ export type EngineEvent =
   | ({ type: 'proc.exit' } & ProcDto)
   | { type: 'proc.output'; id: string; text: string }
   | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended'; [k: string]: unknown }
-  | { type: 'git.changed' };
+  | { type: 'git.changed' }
+  | { type: 'term.output'; id: string; data: string }
+  | { type: 'term.exit'; id: string; exitCode: number };
