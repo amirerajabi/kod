@@ -9,7 +9,8 @@ import { ConfirmDialog, PromptDialog, Toasts } from './components/common/Overlay
 import { Dock } from './components/Dock';
 import { EditorArea } from './components/EditorArea';
 import { NewProjectDialog } from './components/NewProjectDialog';
-import { SettingsDialog, ShortcutSheet } from './components/SettingsDialog';
+import { SettingsDialog } from './components/settings/SettingsDialog';
+import { ShortcutSheet } from './components/ShortcutSheet';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { Welcome } from './components/Welcome';

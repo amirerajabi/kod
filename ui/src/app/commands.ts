@@ -10,7 +10,9 @@ import { dotnetBuild, dotnetRun, dotnetTest, runningOf, startTerminal, stopAll }
 import { effectiveTheme, useSettings } from '../store/settings';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
+import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
+import { checkForUpdatesNow } from './updates';
 
 export interface Command {
   id: string;
@@ -99,6 +101,8 @@ export const COMMANDS: Command[] = [
   { id: 'view.zoomIn', title: 'Increase Font Size', category: 'View', keys: ['Ctrl+='], run: () => useSettings.getState().update({ fontSize: Math.min(32, useSettings.getState().settings.fontSize + 1) }), global: true },
   { id: 'view.zoomOut', title: 'Decrease Font Size', category: 'View', keys: ['Ctrl+-'], run: () => useSettings.getState().update({ fontSize: Math.max(9, useSettings.getState().settings.fontSize - 1) }), global: true },
   { id: 'view.shortcuts', title: 'Keyboard Shortcuts', category: 'Help', keys: ['Ctrl+K Ctrl+S'], run: () => useUi.getState().set({ shortcutsOpen: true }), global: true },
+  { id: 'help.checkForUpdates', title: 'Check for Updates…', category: 'Help', run: () => void checkForUpdatesNow() },
+  { id: 'help.about', title: 'About Kod', category: 'Help', run: () => openSettings('updates') },
 ];
 
 /** Alt+1 style: show the panel, or hide the dock when that panel is already showing. */

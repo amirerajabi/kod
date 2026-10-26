@@ -3,6 +3,13 @@ import { load, save } from '../lib/storage';
 
 export interface Settings {
   theme: 'dark' | 'light' | 'system';
+  /** The app theme used in light mode / dark mode (theme/themes.ts APP_THEMES). */
+  appThemeLight: string;
+  appThemeDark: string;
+  /** The code theme ('match' = derived from the app theme). */
+  codeTheme: string;
+  autoCheckUpdates: boolean;
+  reopenLastWorkspace: boolean;
   fontSize: number;
   fontFamily: string;
   ligatures: boolean;
@@ -21,6 +28,11 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'dark',
+  appThemeLight: 'light',
+  appThemeDark: 'dark',
+  codeTheme: 'match',
+  autoCheckUpdates: true,
+  reopenLastWorkspace: true,
   fontSize: 14,
   fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
   ligatures: true,

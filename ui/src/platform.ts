@@ -19,6 +19,30 @@ export interface Platform {
   reveal(path: string): void;
   openExternal(url: string): void;
   onEngineRestarted(cb: (info: EngineInfo) => void): () => void;
+  appVersion?: string;
+  // ---- updates (desktop only; the Rowlit updater)
+  onUpdateStatus?(cb: (status: UpdateStatus) => void): () => void;
+  getUpdateStatus?(): Promise<UpdateStatus>;
+  checkForUpdates?(opts?: { manual?: boolean }): Promise<UpdateStatus>;
+  configureUpdates?(opts: { autoCheck: boolean }): Promise<void>;
+  quitAndInstall?(): Promise<boolean>;
+  cancelUpdateDownload?(): Promise<boolean>;
+  showNotification?(n: { title: string; body: string }): void;
+}
+
+export type UpdateMode = 'install' | 'notify' | 'disabled';
+export type UpdateState = 'disabled' | 'idle' | 'checking' | 'up-to-date' | 'available' | 'downloading' | 'ready' | 'error';
+
+export interface UpdateStatus {
+  state: UpdateState;
+  /** install: downloaded in the background, restart to install. notify: only announced (unsigned macOS). */
+  mode: UpdateMode;
+  currentVersion: string;
+  version?: string;
+  percent?: number;
+  message?: string;
+  releaseUrl?: string;
+  downloadStopped?: boolean;
 }
 
 declare global {

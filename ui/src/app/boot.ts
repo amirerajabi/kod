@@ -4,28 +4,17 @@ import type { MetaDto } from '../api/types';
 import { connectEvents, onEngineEvent } from '../api/ws';
 import { refreshAllDiagnostics, registerCSharp } from '../editor/csharp';
 import { allEntries, isDirty, replaceText } from '../editor/models';
-import { applyMonacoTheme } from '../editor/monaco';
 import { basename, samePath } from '../lib/paths';
 import { platform } from '../platform';
 import { restoreTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
 import { useProcs } from '../store/procs';
-import { effectiveTheme, onSystemThemeChange, useSettings } from '../store/settings';
+import { onSystemThemeChange, useSettings } from '../store/settings';
+import { applyThemes } from '../theme/applyTheme';
+import { installUpdateWiring } from './updates';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 
-function applyTheme(): void {
-  const dark = effectiveTheme() === 'dark';
-  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  try {
-    applyMonacoTheme(dark);
-  } catch (e) {
-    // a bad colour must never stop the app from starting
-    console.error('Editor theme failed', e);
-  }
-  const s = getComputedStyle(document.documentElement);
-  platform.setTitleBarTheme({ color: s.getPropertyValue('--bg-app').trim(), symbolColor: s.getPropertyValue('--fg').trim(), dark });
-}
 
 async function loadMeta(): Promise<MetaDto> {
   for (let attempt = 0; ; attempt++) {
@@ -47,9 +36,12 @@ export async function boot(): Promise<void> {
   if (platform.titleBar === 'overlay') document.documentElement.classList.add('titlebar-overlay');
   if (platform.titleBar === 'inset') document.documentElement.classList.add('titlebar-inset');
 
-  applyTheme();
-  useSettings.subscribe((s, prev) => s.settings.theme !== prev.settings.theme && applyTheme());
-  onSystemThemeChange(() => useSettings.getState().settings.theme === 'system' && applyTheme());
+  applyThemes();
+  useSettings.subscribe((s, prev) => {
+    const a = s.settings, b = prev.settings;
+    if (a.theme !== b.theme || a.appThemeLight !== b.appThemeLight || a.appThemeDark !== b.appThemeDark || a.codeTheme !== b.codeTheme) applyThemes();
+  });
+  onSystemThemeChange(() => useSettings.getState().settings.theme === 'system' && applyThemes());
 
   const meta = await loadMeta();
   useUi.getState().set({ engineError: null });
@@ -93,7 +85,8 @@ export async function boot(): Promise<void> {
   // reopen the last workspace, like Rider
   const current = await api.get<{ root?: string }>('/workspace').catch(() => null);
   const last = useWorkspace.getState().recents[0];
-  if (!current?.root && last) void useWorkspace.getState().open(last.path);
+  if (!current?.root && last && useSettings.getState().settings.reopenLastWorkspace) void useWorkspace.getState().open(last.path);
+  installUpdateWiring();
 
   // window title follows the workspace and file
   const title = () => {

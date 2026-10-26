@@ -1,12 +1,14 @@
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useUi } from '../../store/ui';
+import { UpdateNotice } from '../UpdateChip';
 import { Dialog } from './Dialog';
 
 export function Toasts() {
   const toasts = useUi((s) => s.toasts);
   return (
     <div className="toasts" role="status" aria-live="polite">
+      <UpdateNotice />
       {toasts.map((t) => {
         const Icon = t.kind === 'success' ? CheckCircle2 : t.kind === 'warning' ? AlertTriangle : t.kind === 'error' ? XCircle : Info;
         return (

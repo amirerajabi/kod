@@ -1,14 +1,23 @@
 // Kod desktop shell: one window, the UI on kod://app (or the Vite dev server), the engine as a sidecar.
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, Notification, protocol, screen, shell } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { Engine, resolveLaunch, type EngineInfo } from './engine';
+import { createUpdater } from './updater';
+import type { UpdateController } from './updater-core';
 
 const DEV_URL = process.env.KOD_DEV_URL;
 const repoRoot = path.resolve(__dirname, '..', '..');
 const uiDir = app.isPackaged ? path.join(process.resourcesPath, 'ui') : path.join(repoRoot, 'ui', 'dist');
 const stateFile = () => path.join(app.getPath('userData'), 'window-state.json');
+/** The app icon for the window and the taskbar: resources/icon.png when installed, build/icon.png in dev. */
+const iconFile = app.isPackaged ? path.join(process.resourcesPath, 'icon.png') : path.join(__dirname, '..', 'build', 'icon.png');
+const smokeTest = !!process.env.KOD_SMOKE_SHOT;
+
+// Windows groups taskbar buttons (and picks their icon) by AppUserModelId: the installer's shortcut uses the appId,
+// so the running window must too, or the taskbar shows the default Electron icon.
+if (process.platform === 'win32') app.setAppUserModelId('dev.kod.ide');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'kod', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, codeCache: true } }]);
 
@@ -18,6 +27,8 @@ let win: BrowserWindow | null = null;
 let engine: Engine | null = null;
 let engineReady: Promise<EngineInfo> | null = null;
 let restarts = 0;
+let updater: UpdateController | null = null;
+const updaterReady = app.whenReady().then(() => createUpdater((m) => console.log(`[updates] ${m}`), smokeTest)).then((u) => (updater = u));
 
 const CSP = [
   "default-src 'self'",
@@ -84,7 +95,7 @@ function createWindow(): void {
     show: false,
     title: 'Kod',
     backgroundColor: dark ? '#1b1d21' : '#f5f6f8',
-    ...(fs.existsSync(path.join(__dirname, '..', 'build', 'icon.png')) ? { icon: path.join(__dirname, '..', 'build', 'icon.png') } : {}),
+    ...(fs.existsSync(iconFile) ? { icon: iconFile } : {}),
     autoHideMenuBar: true,
     ...chrome,
     webPreferences: {
@@ -93,6 +104,7 @@ function createWindow(): void {
       sandbox: true,
       nodeIntegration: false,
       spellcheck: false,
+      additionalArguments: [`--kod-version=${app.getVersion()}`],
     },
   });
   if (state.maximized) win.maximize();
@@ -176,6 +188,16 @@ ipcMain.on('shell:open', (_e, url: string) => {
   if (typeof url === 'string' && /^https?:\/\//.test(url)) void shell.openExternal(url);
 });
 
+// ---- updates (the Rowlit updater: status pushed as update:status)
+ipcMain.handle('update:status', async () => (await updaterReady).status);
+ipcMain.handle('update:check', async (_e, opts?: { manual?: boolean }) => (await updaterReady).check({ manual: opts?.manual === true }));
+ipcMain.handle('update:configure', async (_e, opts?: { autoCheck?: boolean }) => (await updaterReady).configure({ autoCheck: opts?.autoCheck === true }));
+ipcMain.handle('update:install', async () => (await updaterReady).quitAndInstall());
+ipcMain.handle('update:cancel', async () => (await updaterReady).stopDownload());
+ipcMain.handle('notify', (_e, n: { title?: string; body?: string }) => {
+  if (win && !win.isFocused() && Notification.isSupported()) new Notification({ title: String(n?.title ?? 'Kod'), body: String(n?.body ?? ''), icon: iconFile }).show();
+});
+
 app.on('second-instance', () => {
   if (win) {
     if (win.isMinimized()) win.restore();
@@ -210,5 +232,8 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => app.quit());
-app.on('before-quit', () => engine?.stop());
+app.on('before-quit', () => {
+  updater?.dispose();
+  engine?.stop();
+});
 process.on('exit', () => engine?.stop());

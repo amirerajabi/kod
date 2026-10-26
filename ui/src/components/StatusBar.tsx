@@ -7,6 +7,7 @@ import { groupOf, useProcs } from '../store/procs';
 import { useSettings } from '../store/settings';
 import { askConfirm, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
+import { UpdateChip } from './UpdateChip';
 
 const LANG: Record<string, string> = { csharp: 'C#', xml: 'XML', json: 'JSON', markdown: 'Markdown', plaintext: 'Plain Text', razor: 'Razor', javascript: 'JavaScript', typescript: 'TypeScript' };
 
@@ -83,6 +84,7 @@ export function StatusBar() {
           {tab?.readOnly && <span className="sb-item muted">Read-only</span>}
         </>
       )}
+      <UpdateChip />
       <button className="sb-item" title="Keyboard shortcuts" onClick={() => useUi.getState().set({ shortcutsOpen: true })}>
         <Keyboard />
       </button>
