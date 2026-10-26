@@ -15,6 +15,12 @@ export interface Settings {
   fontSize: number;
   fontFamily: string;
   ligatures: boolean;
+  /** The window's font ('' = the system UI font) and its base size in px. */
+  uiFontFamily: string;
+  uiFontSize: number;
+  /** The terminal font ('' = the editor font) and size (0 = editor size - 1). */
+  terminalFontFamily: string;
+  terminalFontSize: number;
   tabSize: number;
   insertSpaces: boolean;
   wordWrap: boolean;
@@ -39,6 +45,10 @@ export const DEFAULT_SETTINGS: Settings = {
   fontSize: 14,
   fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
   ligatures: true,
+  uiFontFamily: '',
+  uiFontSize: 13,
+  terminalFontFamily: '',
+  terminalFontSize: 0,
   tabSize: 4,
   insertSpaces: true,
   wordWrap: false,

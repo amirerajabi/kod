@@ -34,4 +34,8 @@ contextBridge.exposeInMainWorld('kod', {
   quitAndInstall: () => ipcRenderer.invoke('update:install'),
   cancelUpdateDownload: () => ipcRenderer.invoke('update:cancel'),
   showNotification: (n: { title: string; body: string }) => void ipcRenderer.invoke('notify', { title: String(n?.title ?? ''), body: String(n?.body ?? '') }),
+  // ---- secrets (AI API keys, encrypted by the OS)
+  hasSecret: (name: string): Promise<boolean> => ipcRenderer.invoke('secrets:has', String(name)),
+  getSecret: (name: string): Promise<string | null> => ipcRenderer.invoke('secrets:get', String(name)),
+  setSecret: (name: string, value: string | null): Promise<void> => ipcRenderer.invoke('secrets:set', String(name), value === null ? null : String(value)),
 });

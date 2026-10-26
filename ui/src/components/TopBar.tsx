@@ -1,7 +1,7 @@
 import { useDebug } from '../store/debug';
 import { useGit } from '../store/git';
 import { showBranchMenu } from './GitBranchMenu';
-import { Bug, GitBranch, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Square, Sun, SunMoon } from 'lucide-react';
+import { Bug, GitBranch, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Square, Sun, SunMoon } from 'lucide-react';
 import { openWorkspace } from '../app/actions';
 import { runCommand, shortcutOf } from '../app/commands';
 import { appMenu } from '../app/menus';
@@ -25,6 +25,7 @@ export function TopBar() {
   const recents = useWorkspace((s) => s.recents);
   const dockVisible = useUi((s) => s.dockVisible);
   const bottomVisible = useUi((s) => s.bottomVisible);
+  const aiVisible = useUi((s) => s.aiVisible);
   const theme = useSettings((s) => s.settings.theme);
   useProcs((s) => s.procs); // re-render on process changes
   const debugStatus = useDebug((s) => s.status);
@@ -45,15 +46,17 @@ export function TopBar() {
   ];
 
   const runMenu = (): MenuItem[] => {
-    const items: MenuItem[] = ws.projects.map((p) => ({
-      label: p.name,
-      icon: <FileIcon path={p.path} size={14} />,
-      checked: samePath(p.path, startup),
-      shortcut: p.kind,
-      disabled: !p.runnable && p.kind !== 'test',
-      run: () => useWorkspace.getState().setStartup(p.path),
-    }));
-    return items.length ? items : [{ label: ws.state === 'loading' ? 'Loading projects…' : 'No projects', disabled: true }];
+    // only what Run can start (Rider lists run configurations, not every project); tests run from the Unit Tests window
+    const items: MenuItem[] = ws.projects
+      .filter((p) => p.runnable)
+      .map((p) => ({
+        label: p.name,
+        icon: <FileIcon path={p.path} size={14} />,
+        checked: samePath(p.path, startup),
+        shortcut: p.kind,
+        run: () => useWorkspace.getState().setStartup(p.path),
+      }));
+    return items.length ? items : [{ label: ws.state === 'loading' ? 'Loading projects…' : ws.projects.length ? 'No runnable projects' : 'No projects', disabled: true }];
   };
 
   return (
@@ -127,6 +130,9 @@ export function TopBar() {
       )}
       <button className="icon-btn" title={`Theme: ${theme} (click for ${nextTheme})`} onClick={() => useSettings.getState().update({ theme: nextTheme })}>
         <ThemeIcon size={16} />
+      </button>
+      <button className={`icon-btn${aiVisible ? ' on' : ''}`} title={tip('AI Assistant', 'view.ai')} onClick={() => runCommand('view.ai')}>
+        <Sparkles size={16} />
       </button>
       <button className="icon-btn" title={tip('Settings', 'file.settings')} onClick={() => runCommand('file.settings')}>
         <Settings size={16} />

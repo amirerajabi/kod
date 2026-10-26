@@ -2,6 +2,7 @@ import { RefreshCw } from 'lucide-react';
 import { useEffect } from 'react';
 import { boot } from './app/boot';
 import { installKeys } from './app/commands';
+import { AiPanel } from './components/AiPanel';
 import { BottomPanel } from './components/BottomPanel';
 import { CommandPalette } from './components/CommandPalette';
 import { MenuHost } from './components/common/Menu';
@@ -38,12 +39,14 @@ export default function App() {
               <EditorArea />
               <BottomPanel />
             </div>
+            <AiPanel />
           </>
         ) : (
           <div className="center">
             <Welcome />
           </div>
         )}
+        {!root && <AiPanel />}
       </div>
       <StatusBar />
       <MenuHost />

@@ -407,6 +407,12 @@ public sealed class WorkspaceService : IDisposable
         lock (sync) return overlays.ContainsKey(PathUtil.Normalize(path));
     }
 
+    /// <summary>The editor's text of an open file (saved or not), or null when it is not open.</summary>
+    public string? OverlayText(string path)
+    {
+        lock (sync) return overlays.TryGetValue(PathUtil.Normalize(path), out var text) ? text : null;
+    }
+
     private void ApplyText(string path, string text, bool keepOverlay = true)
     {
         var ids = FindDocumentIds(current, path);

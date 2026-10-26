@@ -1,3 +1,4 @@
+using Kod.Engine.Ai;
 using Kod.Engine.Debugging;
 using Kod.Engine.Git;
 using Kod.Engine.Testing;
@@ -149,6 +150,26 @@ public static class Endpoints
         api.MapGet("/nuget/details", (string id, string? version, string? source, NugetService n, CancellationToken ct) => n.DetailsAsync(id, version, source, ct));
         api.MapPost("/nuget/latest", (LatestBody b, NugetService n, CancellationToken ct) => n.LatestAsync(b.Ids, b.Prerelease, ct));
 
+        // ---- AI assistant (events: ai.delta, ai.thinking, ai.tool, ai.notice, ai.done)
+        var ai = api.MapGroup("/ai");
+        ai.MapPost("/chat", (AiChatRequest r, AiService a) => { a.Start(r); return Results.NoContent(); });
+        ai.MapPost("/stop", (AiSessionBody b, AiService a) => { a.Stop(b.SessionId); return Results.NoContent(); });
+        ai.MapPost("/reset", (AiSessionBody b, AiService a) => { a.Reset(b.SessionId); return Results.NoContent(); });
+        ai.MapPost("/approve", (AiApproveRequest r, AiService a) => { a.Approve(r); return Results.NoContent(); });
+        ai.MapPost("/models", async (AiModelsRequest r, AiService a, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(await a.ModelsAsync(r.Provider, ct));
+            }
+            catch (Exception ex) when (ex is AiException or HttpRequestException or Anthropic.Exceptions.AnthropicException)
+            {
+                return Results.Problem(ex.Message, statusCode: 400);
+            }
+        });
+
         return api;
     }
 }
+
+public sealed record AiSessionBody(string SessionId);

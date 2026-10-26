@@ -5,6 +5,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { create } from 'zustand';
 import { api, errorText } from '../api/client';
 import { basename } from '../lib/paths';
+import { quoteFamily } from '../theme/fonts';
 import { useSettings } from './settings';
 import { toast, useUi } from './ui';
 import { useWorkspace } from './workspace';
@@ -62,10 +63,8 @@ export function liveTerminal(id: string): Live | undefined {
 
 export async function newTerminal(cwd?: string): Promise<void> {
   const dir = cwd ?? useWorkspace.getState().ws.root ?? useWorkspace.getState().meta?.home;
-  const s = useSettings.getState().settings;
   const xterm = new Terminal({
-    fontFamily: s.fontFamily,
-    fontSize: Math.max(10, s.fontSize - 1),
+    ...terminalFont(),
     cursorBlink: true,
     allowProposedApi: true,
     scrollback: 10_000,
@@ -133,4 +132,19 @@ export function onTerminalEvent(e: { type: string; id?: unknown; data?: unknown;
 export function retheme(): void {
   const theme = terminalTheme();
   for (const t of live.values()) t.xterm.options.theme = theme;
+}
+
+function terminalFont(): { fontFamily: string; fontSize: number } {
+  const s = useSettings.getState().settings;
+  return { fontFamily: s.terminalFontFamily.trim() ? quoteFamily(s.terminalFontFamily) : s.fontFamily, fontSize: s.terminalFontSize || Math.max(10, s.fontSize - 1) };
+}
+
+/** Settings › Appearance font changes, applied to open terminals. */
+export function refont(): void {
+  const font = terminalFont();
+  for (const t of live.values()) {
+    t.xterm.options.fontFamily = font.fontFamily;
+    t.xterm.options.fontSize = font.fontSize;
+    if (t.host.isConnected) t.fit.fit();
+  }
 }

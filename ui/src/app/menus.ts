@@ -119,6 +119,10 @@ export function appMenu(): MenuItem[] {
       ],
     },
     {
+      label: 'AI',
+      submenu: [c('view.ai'), c('ai.ask'), c('ai.newChat'), 'separator', c('ai.explain'), c('ai.fix'), c('ai.tests'), c('ai.doc'), 'separator', c('ai.settings')],
+    },
+    {
       label: 'Tests',
       submenu: [c('run.tests'), c('tests.runFailed'), c('tests.runCurrent'), 'separator', c('view.tests')],
     },

@@ -95,6 +95,16 @@ export function CodeEditor() {
     } as monaco.editor.IStandaloneEditorConstructionOptions);
     editorInstance = ed;
 
+    // right-click › AI (the selection, or the whole file)
+    for (const [i, [id, label]] of ([
+      ['ai.explain', 'AI: Explain This Code'],
+      ['ai.fix', 'AI: Find and Fix Problems'],
+      ['ai.tests', 'AI: Write Unit Tests'],
+      ['ai.doc', 'AI: Add Documentation Comments'],
+    ] as const).entries()) {
+      ed.addAction({ id: `kod.${id}`, label, contextMenuGroupId: '0_ai', contextMenuOrder: i, run: () => void import('../app/commands').then((m) => m.runCommand(id)) });
+    }
+
     // Rider keys on top of Monaco's own (F12, Shift+F12, F2, Ctrl+Space, Ctrl+Shift+Space...)
     ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Enter, () => ed.trigger('kod', 'editor.action.quickFix', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyL, () => ed.trigger('kod', 'editor.action.formatDocument', {}));

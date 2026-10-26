@@ -16,6 +16,8 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
               semantic tokens, outline, code fixes and refactorings, metadata views
   Processes/  dotnet build / run / test / new / add package and the terminal shell, streamed over /ws
   Nuget/      v3 feed search, registration details, versions, sources, PackageReferences (incl. central versions)
+  Ai/         the assistant's agent loop and workspace tools; Claude via the Anthropic SDK, other providers via
+              the OpenAI-compatible chat completions API
 ```
 
 ## Features
@@ -48,6 +50,13 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Git log window (Alt+9) with commit details and per-file diffs.
 - Inline blame of the caret line, like GitToolBox: author, time ago and commit message at the end of the line.
 - Git › Manage Remotes: add, rename, change the URL of and remove remotes.
+
+**AI Assistant** (Alt+2)
+- Chat with Claude (Anthropic SDK), ChatGPT, GLM (Zhipu / Z.ai), Gemini, DeepSeek, Mistral, Grok, Qwen, OpenRouter,
+  Ollama, LM Studio or any OpenAI-compatible server.
+- Agent mode reads and searches the workspace, edits files and runs commands, asking before each edit or command;
+  Auto and Chat modes. Streaming Markdown answers, code blocks with Copy / Insert, editor actions (Explain, Fix,
+  Write tests, Document). API keys are kept encrypted by the OS keychain.
 
 **Unit tests**
 - Test explorer (Alt+8) for xUnit, NUnit and MSTest, discovered by Roslyn: run all / failed / a namespace, class or
