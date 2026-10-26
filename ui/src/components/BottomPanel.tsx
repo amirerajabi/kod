@@ -1,4 +1,4 @@
-import { Bug, FlaskConical, GitBranch, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bug, FlaskConical, GitBranch, Package, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -14,6 +14,7 @@ import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
 import { GitLogPanel } from './GitLogPanel';
+import { NugetWindow } from './NugetWindow';
 import { TestsPanel } from './TestsPanel';
 import { useTests } from '../store/tests';
 import { useDebug } from '../store/debug';
@@ -40,6 +41,7 @@ export function BottomPanel() {
     { id: 'build', label: 'Build', icon: runningIn('build') ? <LoaderCircle size={14} className="spin" /> : <Hammer size={14} /> },
     { id: 'tests', label: 'Tests', icon: testsRunning ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} /> },
     { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
+    { id: 'nuget', label: 'NuGet', icon: <Package size={14} /> },
     {
       id: 'problems',
       label: 'Problems',
@@ -79,6 +81,7 @@ export function BottomPanel() {
           {tab === 'terminal' && <ProcessPane group="terminal" />}
           {tab === 'tests' && <TestsPanel />}
           {tab === 'git' && <GitLogPanel />}
+          {tab === 'nuget' && <NugetWindow />}
           {tab === 'problems' && <ProblemsPane />}
           {tab === 'usages' && <UsagesPane />}
         </div>

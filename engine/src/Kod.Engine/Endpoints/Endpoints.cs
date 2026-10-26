@@ -23,6 +23,7 @@ public sealed record PathsBody(List<string> Paths);
 public sealed record CommitBody(string Message, List<string>? Paths, bool Amend);
 public sealed record CheckoutBody(string Name, bool Create);
 public sealed record BlameBody(string Path, string? Text);
+public sealed record LatestBody(List<string> Ids, bool Prerelease);
 
 public static class Endpoints
 {
@@ -124,8 +125,13 @@ public static class Endpoints
         api.MapGet("/tests/results/{runId}", (string runId, TestService t) => t.Results(runId));
 
         // ---- NuGet
-        api.MapGet("/nuget/search", (string q, bool? prerelease, NugetService n, CancellationToken ct) => n.SearchAsync(q, prerelease == true, ct));
+        api.MapGet("/nuget/search", (string q, bool? prerelease, string? source, NugetService n, CancellationToken ct) => n.SearchAsync(q, prerelease == true, source, ct));
         api.MapGet("/nuget/installed", (string project) => NugetService.Installed(project));
+        api.MapGet("/nuget/installedAll", (NugetService n) => n.InstalledAll());
+        api.MapGet("/nuget/sources", (NugetService n, CancellationToken ct) => n.SourcesAsync(ct));
+        api.MapGet("/nuget/versions", (string id, string? source, NugetService n, CancellationToken ct) => n.VersionsAsync(id, source, ct));
+        api.MapGet("/nuget/details", (string id, string? version, string? source, NugetService n, CancellationToken ct) => n.DetailsAsync(id, version, source, ct));
+        api.MapPost("/nuget/latest", (LatestBody b, NugetService n, CancellationToken ct) => n.LatestAsync(b.Ids, b.Prerelease, ct));
 
         return api;
     }
