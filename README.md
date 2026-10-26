@@ -96,6 +96,20 @@ pwsh scripts/build.ps1          # engine publish + UI build + electron-builder i
 pwsh scripts/build.ps1 -Dir     # unpacked app folder
 ```
 
+## CI and releases
+
+- **CI** (`.github/workflows/ci.yml`): on every push to `main` and every pull request, on Windows and Linux: engine
+  build, vulnerable-package check, an engine smoke test (publish, start, Roslyn completion), UI type-check and build,
+  desktop type-check and bundle.
+- **Release** (`.github/workflows/release.yml`): push a tag `vX.Y.Z` matching `desktop/package.json` (the three version
+  files must agree) with `docs/release-notes/vX.Y.Z.md`. Windows (NSIS), macOS (DMG + ZIP, arm64) and Linux (AppImage)
+  build on their own runners; the update metadata (`latest*.yml`) is checked against the assets and everything is
+  published as the GitHub Release the in-app updater reads.
+
+`ash
+git tag v0.2.1 && git push origin v0.2.1
+`  
+
 ## Keyboard (Rider keymap)
 
 | Action | Keys |

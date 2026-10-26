@@ -1,0 +1,70 @@
+name: CI
+
+# Build the engine, type-check and build the UI and the desktop shell, and smoke-test the published engine on every
+# push to main and every pull request (Windows and Linux runners). Releases are in release.yml.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: "1"
+  DOTNET_CLI_TELEMETRY_OPTOUT: "1"
+
+jobs:
+  check:
+    name: Build and check (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            ui/package-lock.json
+            desktop/package-lock.json
+
+      - name: Versions agree
+        shell: bash
+        run: node .github/scripts/check-versions.mjs
+
+      # ---- engine
+      - name: Engine build
+        run: dotnet build engine/Kod.slnx -c Release
+      - name: Engine vulnerable packages
+        shell: bash
+        run: |
+          out=$(dotnet list engine/Kod.slnx package --vulnerable --include-transitive 2>&1)
+          echo "$out"
+          if echo "$out" | grep -q 'has the following vulnerable packages'; then echo "::error::Vulnerable NuGet packages found"; exit 1; fi
+      - name: Engine smoke (publish, start, Roslyn completion)
+        shell: bash
+        run: node .github/scripts/engine-smoke.mjs
+
+      # ---- ui
+      - name: UI install
+        run: npm ci --prefix ui
+      - name: UI type-check and build
+        run: npm --prefix ui run build
+
+      # ---- desktop
+      - name: Desktop install
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+        run: npm ci --prefix desktop
+      - name: Desktop type-check and bundle
+        run: npm --prefix desktop run build
