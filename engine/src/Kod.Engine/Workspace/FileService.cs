@@ -15,7 +15,7 @@ public sealed record SearchMatch(int Line, int Column, int Length, string Previe
 public sealed record SearchFileResult(string Path, IReadOnlyList<SearchMatch> Matches);
 
 /// <summary>File system operations for the explorer, editors, go-to-file and find in files.</summary>
-public sealed class FileService(WorkspaceService workspace)
+public sealed class FileService(WorkspaceService workspace, LocalHistoryService history)
 {
     private const long MaxEditableBytes = 8 * 1024 * 1024;
 
@@ -68,6 +68,56 @@ public sealed class FileService(WorkspaceService workspace)
         }
     }
 
+    // ------------------------------------------------------------------ TODO window
+
+    private static readonly HashSet<string> TodoExtensions = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ".cs", ".csx", ".razor", ".cshtml", ".xaml", ".axaml", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".css", ".scss", ".less", ".html", ".htm",
+        ".sql", ".ps1", ".psm1", ".sh", ".bash", ".py", ".yml", ".yaml", ".xml", ".props", ".targets", ".csproj", ".fs", ".vb", ".proto", ".dockerfile",
+    };
+
+    /// <summary>TODO / FIXME / HACK / BUG / NOTE / XXX inside comments (Rider's default patterns, any case).</summary>
+    private static readonly Regex TodoPattern = new(@"\b(TODO|FIXME|HACK|BUG|NOTE|XXX)\b[:\s]*(.*)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex CommentStart = new(@"//|/\*|<!--|^\s*\*|^\s*#|^\s*--|^\s*@\*", RegexOptions.Compiled);
+
+    public sealed record TodoDto(string Path, int Line, int Column, string Kind, string Text);
+
+    public IReadOnlyList<TodoDto> Todos(CancellationToken ct)
+    {
+        var list = new List<TodoDto>();
+        foreach (var file in AllFiles())
+        {
+            ct.ThrowIfCancellationRequested();
+            var name = Path.GetFileName(file);
+            if (!TodoExtensions.Contains(Path.GetExtension(file)) && !name.Equals("Dockerfile", StringComparison.OrdinalIgnoreCase)) continue;
+            try
+            {
+                if (new FileInfo(file).Length > 2 * 1024 * 1024) continue;
+                var n = 0;
+                foreach (var line in File.ReadLines(file))
+                {
+                    n++;
+                    var c = CommentStart.Match(line);
+                    if (!c.Success) continue;
+                    var m = TodoPattern.Match(line, c.Index);
+                    if (!m.Success) continue;
+                    // the comment ends where a block comment closes
+                    var text = m.Value;
+                    foreach (var close in new[] { "*/", "-->", "*@" })
+                        if (text.IndexOf(close, StringComparison.Ordinal) is var at and >= 0) text = text[..at];
+                    text = text.Trim();
+                    list.Add(new TodoDto(file, n, m.Index + 1, m.Groups[1].Value.ToUpperInvariant(), text.Length > 300 ? text[..300] : text));
+                    if (list.Count >= 5000) return list;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+            }
+        }
+        return list;
+    }
+
     public FileText Read(string path)
     {
         path = PathUtil.Normalize(path);
@@ -80,13 +130,15 @@ public sealed class FileService(WorkspaceService workspace)
         return new FileText(path, text, eol, info.IsReadOnly);
     }
 
-    public void Write(string path, string text)
+    public void Write(string path, string text, string label = "Saved")
     {
         path = PathUtil.Normalize(path);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        history.RecordBaseline(path);
         // keep a BOM if the file had one
         var bom = File.Exists(path) && HasUtf8Bom(path);
         File.WriteAllText(path, text, new UTF8Encoding(bom));
+        history.Record(path, text, label);
     }
 
     public string Create(string path, bool isDir, string? text)
@@ -124,6 +176,9 @@ public sealed class FileService(WorkspaceService workspace)
         path = PathUtil.Normalize(path);
         var root = workspace.Root;
         if (root is not null && PathUtil.Equal(path, root)) throw new InvalidOperationException("The workspace folder itself cannot be deleted");
+        // a deleted file can come back from Local History
+        if (File.Exists(path) && new FileInfo(path).Length <= MaxEditableBytes && !BinaryExtensions.Contains(Path.GetExtension(path)) && !LooksBinary(path))
+            history.Record(path, File.ReadAllText(path), "Deleted");
         if (OperatingSystem.IsWindows())
         {
             if (Directory.Exists(path))

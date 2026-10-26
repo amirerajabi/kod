@@ -161,7 +161,7 @@ public sealed class AiTools(WorkspaceService workspace, FileService files)
     {
         var full = Resolve(path);
         var existed = File.Exists(full);
-        files.Write(full, content);
+        files.Write(full, content, "AI Assistant");
         return ($"{(existed ? "Replaced" : "Created")} {Rel(full)} ({content.Split('\n').Length} lines)", false, full);
     }
 
@@ -177,7 +177,7 @@ public sealed class AiTools(WorkspaceService workspace, FileService files)
         var at = text.IndexOf(find, StringComparison.Ordinal);
         if (at < 0) throw new AiException("old_text was not found in the file; read the file again and copy the text exactly");
         if (text.IndexOf(find, at + find.Length, StringComparison.Ordinal) >= 0) throw new AiException("old_text occurs more than once; include more surrounding lines");
-        files.Write(full, string.Concat(text.AsSpan(0, at), Eol(newText), text.AsSpan(at + find.Length)));
+        files.Write(full, string.Concat(text.AsSpan(0, at), Eol(newText), text.AsSpan(at + find.Length)), "AI Assistant");
         return ($"Edited {Rel(full)}", false, full);
     }
 

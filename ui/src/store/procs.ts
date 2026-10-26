@@ -19,9 +19,9 @@ export interface ProcView {
 /** Which bottom tab shows a process. */
 export type ProcGroup = 'run' | 'build' | 'terminal';
 
-export const groupOf = (kind: string): ProcGroup => (kind === 'run' ? 'run' : kind === 'terminal' ? 'terminal' : 'build');
+export const groupOf = (kind: string): ProcGroup => (kind === 'run' || kind === 'docker-run' ? 'run' : kind === 'terminal' ? 'terminal' : 'build');
 
-interface StartRequest {
+export interface StartRequest {
   kind: string;
   title: string;
   file: string;

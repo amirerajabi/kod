@@ -68,6 +68,38 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Git log window (Alt+9) with commit details and per-file diffs.
 - Inline blame of the caret line, like GitToolBox: author, time ago and commit message at the end of the line.
 - Git › Manage Remotes: add, rename, change the URL of and remove remotes.
+- **Changelists** in the Commit window (the active one's files are checked for the next commit) and **partial
+  commits**: expand a file to pick hunks or single lines.
+- **Merge conflicts**: a Conflicts dialog (Accept Yours / Accept Theirs / Merge…) and a three-way merge tool (yours,
+  the result with Accept actions per conflict, theirs); Continue / Skip / Abort for a stopped merge, rebase,
+  cherry-pick or revert.
+- From the log: **Cherry-Pick**, **Revert Commit**, **Reset Current Branch to Here** (soft / mixed / keep / hard),
+  Checkout Revision, New Branch, and **Interactively Rebase from Here** (reorder, reword, edit, squash, fixup, drop).
+- **Stash** (save, apply, pop, drop, browse the stashed files) and **Shelf** (set changes aside as patches, unshelve
+  later), in the Git window's Stashes and Shelf tabs.
+
+**Local History, bookmarks, TODO**
+- **Local History** of every file, Git or not: every save, delete and refactoring keeps a revision (30 days); diff
+  any revision against the current text, revert to it, put labels.
+- **Bookmarks**: F11 toggles one, Ctrl+Shift+1…9 a numbered one, Ctrl+1…9 jumps back, Ctrl+F11 a letter; they
+  follow edits and are listed in the Bookmarks window (Shift+F11).
+- **TODO** window (Alt+Shift+6): TODO / FIXME / HACK / BUG / NOTE comments of the project or the current file.
+
+**Database** (Alt+Shift+D)
+- Data sources for SQL Server, PostgreSQL, MySQL / MariaDB and SQLite (fields or a connection string; passwords in
+  the OS keychain), or imported from appsettings.json's ConnectionStrings.
+- Schema tree (schemas, tables, views, columns with types and keys, routines); Select Top 100 Rows.
+- SQL consoles: Ctrl+Enter runs the selection or the statement at the caret, Ctrl+Shift+Enter the whole console;
+  results grid with several result sets, NULLs, copy as TSV / CSV, errors linked to their line, cancel.
+- **SQL completion** from the schema (tables, columns, aliases) in consoles and inside C# strings: FromSqlRaw,
+  ExecuteSqlRaw, SqlQuery, Dapper's Query / Execute, or any string that starts like a SQL statement.
+
+**Docker**
+- **Services** window (Alt+Shift+8): Docker Compose files and their services, containers and images; start, stop,
+  restart, remove, logs, a terminal inside a container; compose up / down / stop / restart / build / pull.
+- **Run in Docker**: builds the project's Dockerfile and runs it with its EXPOSEd ports, output in the Run window.
+- **Debug in Docker** (Rider's fast mode): the Dockerfile's `base` stage (or the official runtime image) with the
+  local build mounted and a Linux netcoredbg inside; breakpoints and stepping as usual.
 
 **AI Assistant** (Alt+2)
 - Chat with Claude (Anthropic SDK), ChatGPT, GLM (Zhipu / Z.ai), Gemini, DeepSeek, Mistral, Grok, Qwen, OpenRouter,
@@ -178,9 +210,12 @@ git tag v0.2.1 && git push origin v0.2.1
 | Explorer / tool windows / terminal | Alt+1 / Ctrl+J / Alt+F12 |
 | Save / save all / close tab | Ctrl+S / Ctrl+Shift+S / Ctrl+F4 |
 | Settings | Ctrl+Alt+S |
+| Bookmark / numbered bookmark / go to bookmark / bookmarks | F11 / Ctrl+Shift+1…9 / Ctrl+1…9 / Shift+F11 |
+| TODO / Database / Services | Alt+Shift+6 / Alt+Shift+D / Alt+Shift+8 |
+| Run query in a SQL console (statement / all) | Ctrl+Enter / Ctrl+Shift+Enter |
 
 On macOS, Ctrl is ⌘.
 
 ## Not (yet) in Kod
 
-Profilers, debugging a single test, merge-conflict resolution UI, and interactive rebase.
+Profilers, debugging a single test, code coverage, and Razor / XAML intelligence.

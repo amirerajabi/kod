@@ -1,9 +1,10 @@
-import { FolderTree, GitCommitHorizontal, ListTree, Search } from 'lucide-react';
+import { Database, FolderTree, GitCommitHorizontal, ListTree, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { shortcutOf } from '../app/commands';
 import { DOCK_MAX, DOCK_MIN, useUi, type DockPanel } from '../store/ui';
 import { Splitter } from './common/Splitter';
 import { CommitPanel } from './CommitPanel';
+import { DatabasePanel } from './DatabasePanel';
 import { Explorer } from './Explorer';
 import { SearchPanel } from './SearchPanel';
 import { StructurePanel } from './StructurePanel';
@@ -13,6 +14,7 @@ const TABS: { id: DockPanel; label: string; Icon: typeof FolderTree; command: st
   { id: 'commit', label: 'Commit', Icon: GitCommitHorizontal, command: 'view.commit' },
   { id: 'structure', label: 'Structure', Icon: ListTree, command: 'view.structure' },
   { id: 'search', label: 'Search', Icon: Search, command: 'nav.findInFiles' },
+  { id: 'database', label: 'Database', Icon: Database, command: 'view.database' },
 ];
 
 /** Left dock: Explorer | Structure | Search | NuGet, tabbed and resizable (the Rowlit dock). */
@@ -43,6 +45,7 @@ export function Dock() {
           {dock === 'commit' && <CommitPanel />}
           {dock === 'structure' && <StructurePanel />}
           {dock === 'search' && <SearchPanel />}
+          {dock === 'database' && <DatabasePanel />}
         </div>
       </aside>
       <Splitter

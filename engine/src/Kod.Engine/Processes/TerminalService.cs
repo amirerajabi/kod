@@ -5,7 +5,8 @@ using Porta.Pty;
 
 namespace Kod.Engine.Processes;
 
-public sealed record TerminalStartRequest(string? Cwd, int Cols, int Rows, string? Shell);
+/// <summary>With <see cref="Args"/>, <see cref="Shell"/> is any program run in the terminal (docker exec -it …).</summary>
+public sealed record TerminalStartRequest(string? Cwd, int Cols, int Rows, string? Shell, IReadOnlyList<string>? Args = null, string? Title = null);
 
 public sealed record TerminalDto(string Id, string Title, string Cwd, string Shell, int? ExitCode);
 
@@ -46,13 +47,22 @@ public sealed class TerminalService(EventHub hub, ILogger<TerminalService> log) 
     {
         var cwd = string.IsNullOrWhiteSpace(req.Cwd) || !Directory.Exists(req.Cwd) ? Environment.GetFolderPath(Environment.SpecialFolder.UserProfile) : req.Cwd!;
         var shell = string.IsNullOrWhiteSpace(req.Shell) ? DefaultShell() : req.Shell!;
+        // a bare program name ("docker"): its full path, for the pseudo console
+        if (!Path.IsPathRooted(shell))
+        {
+            var exts = OperatingSystem.IsWindows() ? new[] { ".exe", ".cmd", "" } : [""];
+            var found = (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
+                .SelectMany(d => exts.Select(e => Path.Combine(d, shell + e)))
+                .FirstOrDefault(File.Exists);
+            if (found is not null) shell = found;
+        }
         var env = new Dictionary<string, string>();
         foreach (System.Collections.DictionaryEntry e in Environment.GetEnvironmentVariables()) env[(string)e.Key] = (string?)e.Value ?? "";
         env["TERM"] = "xterm-256color";
         env["COLORTERM"] = "truecolor";
         env["TERM_PROGRAM"] = "Kod";
         var name = Path.GetFileNameWithoutExtension(shell).ToLowerInvariant();
-        var args = name switch
+        var args = req.Args is { Count: > 0 } custom ? custom.ToArray() : name switch
         {
             "pwsh" or "powershell" => new[] { "-NoLogo" },
             "bash" or "zsh" or "fish" => new[] { "-l" },
@@ -69,7 +79,7 @@ public sealed class TerminalService(EventHub hub, ILogger<TerminalService> log) 
             Environment = env,
         }, ct);
         var id = Guid.NewGuid().ToString("N")[..12];
-        var term = new Term(pty, new TerminalDto(id, Path.GetFileName(cwd) is { Length: > 0 } f ? f : cwd, cwd, shell, null));
+        var term = new Term(pty, new TerminalDto(id, req.Title ?? (Path.GetFileName(cwd) is { Length: > 0 } f ? f : cwd), cwd, shell, null));
         terms[id] = term;
         term.Flush = new Timer(_ => FlushOutput(term), null, 16, 16);
         pty.ProcessExited += (_, e) =>

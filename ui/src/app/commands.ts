@@ -10,14 +10,14 @@ import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
 import { dotnetBuild, dotnetRun, startTerminal, stopAll } from '../store/procs';
 import { effectiveTheme, useSettings } from '../store/settings';
-import { toast, useUi } from '../store/ui';
+import { askText, toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
 import { checkForUpdatesNow } from './updates';
 import { showBranchMenu } from '../components/GitBranchMenu';
 import { toggleBlame } from '../editor/gitEditor';
-import { gitFetch, gitPull, gitPush, initRepository, newBranch, openDiff, rollback } from '../store/git';
+import { gitFetch, gitPull, gitPush, initRepository, newBranch, openDiff, operationAction, rollback, stashChanges } from '../store/git';
 import { runFailed, runTests, useTests } from '../store/tests';
 import { useTerminals } from '../store/terminals';
 import { samePath } from '../lib/paths';
@@ -31,6 +31,10 @@ import { changeSignature, extractInterface, refactorThis, safeDelete } from '../
 import { applyFileEdits } from '../store/editors';
 import { showHierarchy } from '../store/hierarchy';
 import { inspectSolution } from '../store/inspections';
+import { gotoMnemonic, toggleAtCaret, toggleWithMnemonic } from '../editor/bookmarks';
+import { importFromAppSettings, openConsole, useDb } from '../store/database';
+import { debugInDocker, runInDocker, stopDockerRun } from '../store/docker';
+import { showConflicts } from '../components/GitDialogs';
 
 function toggleAi(): void {
   const ui = useUi.getState();
@@ -125,6 +129,38 @@ export const COMMANDS: Command[] = [
   { id: 'nav.callHierarchy', title: 'Call Hierarchy', category: 'Navigate', keys: ['Ctrl+Alt+H'], run: () => hierarchyAtCaret('call') },
   { id: 'nav.typeHierarchy', title: 'Type Hierarchy', category: 'Navigate', keys: ['Ctrl+H'], run: () => hierarchyAtCaret('type') },
   { id: 'view.hierarchy', title: 'Hierarchy Window', category: 'View', run: () => useUi.getState().showBottom('hierarchy') },
+
+  // Bookmarks, Local History, TODO
+  { id: 'bookmark.toggle', title: 'Toggle Bookmark', category: 'Bookmarks', keys: ['F11'], run: () => toggleAtCaret(getEditor()), when: () => !debugActive() },
+  { id: 'bookmark.mnemonic', title: 'Toggle Bookmark with Mnemonic…', category: 'Bookmarks', keys: ['Ctrl+F11'], run: () => void toggleWithMnemonic(getEditor()) },
+  { id: 'view.bookmarks', title: 'Show Bookmarks', category: 'Bookmarks', keys: ['Shift+F11'], run: () => useUi.getState().showBottom('bookmarks'), global: true },
+  ...[...'1234567890'].flatMap((d): Command[] => [
+    { id: `bookmark.toggle${d}`, title: `Toggle Bookmark ${d}`, category: 'Bookmarks', keys: [`Ctrl+Shift+${d}`], run: () => toggleAtCaret(getEditor(), d) },
+    { id: `bookmark.goto${d}`, title: `Go to Bookmark ${d}`, category: 'Bookmarks', keys: [`Ctrl+${d}`], run: () => gotoMnemonic(d), global: true },
+  ]),
+  { id: 'history.show', title: 'Local History: Show History', category: 'File', run: () => { const f = currentFilePath(); if (f) useEditors.getState().openHistory(f); else toast('info', 'Open a file first'); } },
+  { id: 'history.label', title: 'Local History: Put Label…', category: 'File', run: () => void putHistoryLabel() },
+  { id: 'view.todo', title: 'TODO', category: 'View', keys: ['Alt+Shift+6'], run: () => useUi.getState().showBottom('todo'), global: true },
+
+  // Docker
+  { id: 'view.services', title: 'Services (Docker)', category: 'View', keys: ['Alt+Shift+8'], run: () => useUi.getState().showBottom('services'), global: true },
+  { id: 'run.docker', title: 'Run in Docker', category: 'Run', run: needsRoot(() => runInDocker()) },
+  { id: 'run.debugDocker', title: 'Debug in Docker (fast mode)', category: 'Run', run: needsRoot(() => debugInDocker()) },
+  { id: 'run.stopDocker', title: 'Stop Docker Container (Run in Docker)', category: 'Run', run: needsRoot(() => stopDockerRun()) },
+
+  // Git: conflicts, stash, shelf, merge / rebase in progress
+  { id: 'git.conflicts', title: 'Resolve Conflicts…', category: 'Git', run: () => showConflicts() },
+  { id: 'git.continue', title: 'Continue Merge / Rebase / Cherry-Pick', category: 'Git', run: () => void operationAction('continue') },
+  { id: 'git.abort', title: 'Abort Merge / Rebase / Cherry-Pick', category: 'Git', run: () => void operationAction('abort') },
+  { id: 'git.stash', title: 'Stash Changes…', category: 'Git', run: needsRoot(() => stashChanges()) },
+  { id: 'git.stashes', title: 'Show Stashes and Shelf', category: 'Git', run: () => useUi.getState().showBottom('git') },
+
+  // Database
+  { id: 'view.database', title: 'Database', category: 'Database', keys: ['Alt+Shift+D'], run: () => useUi.getState().showDock('database'), global: true },
+  { id: 'db.newSource', title: 'New Data Source…', category: 'Database', run: () => { useUi.getState().showDock('database'); useDb.setState({ editing: { id: `ds${Date.now()}`, name: '', kind: 'sqlserver' } }); } },
+  { id: 'db.import', title: 'Import Data Sources from appsettings.json', category: 'Database', run: needsRoot(() => importFromAppSettings()) },
+  { id: 'db.console', title: 'New Query Console', category: 'Database', keys: ['Ctrl+Shift+F10'], run: () => newConsole() },
+  { id: 'view.dbResults', title: 'Query Results', category: 'Database', run: () => useUi.getState().showBottom('database') },
 
   // Code
   { id: 'code.complete', title: 'Basic Completion', category: 'Code', keys: ['Ctrl+Space'], run: () => editorAction('editor.action.triggerSuggest') },
@@ -276,6 +312,36 @@ function navigateToMenu(): void {
   ]);
 }
 
+/** A console for the data source of the active console, else the one used for code, else the only one. */
+function newConsole(): void {
+  const { sources } = useDb.getState();
+  const active = useEditors.getState().active;
+  const fromConsole = active?.startsWith('kod-sql:') ? active.split(':')[1] : undefined;
+  const id = fromConsole ?? sources.find((s) => s.forCode)?.id ?? sources[0]?.id;
+  if (!id) {
+    useUi.getState().showDock('database');
+    toast('info', 'Add a data source first', 'Database panel › New Data Source.');
+    return;
+  }
+  openConsole(id);
+}
+
+async function putHistoryLabel(): Promise<void> {
+  const f = currentFilePath();
+  if (!f) {
+    toast('info', 'Open a file first');
+    return;
+  }
+  const label = await askText({ title: 'Put label', label: 'Marks the current state of the file in Local History', placeholder: 'Before the big refactoring', okLabel: 'Put Label' });
+  if (!label) return;
+  try {
+    await api.post('/history/label', { path: f, text: getEditor()?.getModel()?.getValue(), label });
+    toast('success', 'Label put', label, 2000);
+  } catch (e) {
+    toast('error', 'Could not put the label', errorText(e));
+  }
+}
+
 async function codeCleanup(): Promise<void> {
   const ed = getEditor();
   const model = ed?.getModel();
@@ -342,6 +408,7 @@ function chordOf(e: KeyboardEvent): string {
   else if (key === 'ArrowRight') key = 'Right';
   else if (key === 'ArrowUp') key = 'Up';
   else if (key === 'ArrowDown') key = 'Down';
+  if (/^Digit\d$/.test(e.code)) key = e.code.slice(5);
   if (e.code === 'Backquote') key = '`';
   if (e.code === 'Equal') key = '=';
   if (e.code === 'Minus') key = '-';

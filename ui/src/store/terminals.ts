@@ -61,7 +61,8 @@ export function liveTerminal(id: string): Live | undefined {
   return live.get(id);
 }
 
-export async function newTerminal(cwd?: string): Promise<void> {
+/** A terminal tab: the user's shell, or a program (docker exec -it … sh) when one is given. */
+export async function newTerminal(cwd?: string, program?: { shell: string; args: string[]; title: string }): Promise<void> {
   const dir = cwd ?? useWorkspace.getState().ws.root ?? useWorkspace.getState().meta?.home;
   const xterm = new Terminal({
     ...terminalFont(),
@@ -76,7 +77,7 @@ export async function newTerminal(cwd?: string): Promise<void> {
   host.className = 'xterm-host';
   useUi.getState().showBottom('terminal');
   try {
-    const info = await api.post<{ id: string; title: string; cwd: string; shell: string }>('/term/start', { cwd: dir, cols: 120, rows: 30 });
+    const info = await api.post<{ id: string; title: string; cwd: string; shell: string }>('/term/start', { cwd: dir, cols: 120, rows: 30, ...program });
     live.set(info.id, { xterm, fit, host });
     // Ctrl+C copies when text is selected (else it interrupts); Ctrl+V pastes through the browser's paste event
     xterm.attachCustomKeyEventHandler((e) => {

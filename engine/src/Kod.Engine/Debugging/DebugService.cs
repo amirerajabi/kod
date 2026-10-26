@@ -10,7 +10,8 @@ namespace Kod.Engine.Debugging;
 
 public sealed record BreakpointDto(int Line, string? Condition = null);
 
-public sealed record DebugStartRequest(string ProjectPath, Dictionary<string, List<BreakpointDto>>? Breakpoints, bool StopAtEntry = false);
+/// <summary><see cref="Docker"/>: debug inside a container (Rider's fast mode, see <see cref="Kod.Engine.Docker.DockerService.PrepareDebugAsync"/>).</summary>
+public sealed record DebugStartRequest(string ProjectPath, Dictionary<string, List<BreakpointDto>>? Breakpoints, bool StopAtEntry = false, bool Docker = false);
 
 public sealed record FrameDto(int Id, string Name, string? Path, int Line, int Column);
 
@@ -26,7 +27,7 @@ public sealed record VerifiedBreakpointDto(int Line, bool Verified, string? Mess
 /// One debug session at a time: netcoredbg in DAP mode (--interpreter=vscode) over stdio. The engine is the DAP client;
 /// the UI talks to it with small requests and gets debug.* events (state, stopped with the call stack, output, ended).
 /// </summary>
-public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspace, EventHub hub, ILogger<DebugService> log) : IDisposable
+public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspace, Kod.Engine.Docker.DockerService docker, EventHub hub, ILogger<DebugService> log) : IDisposable
 {
     private readonly object sync = new();
     private Session? session;
@@ -39,7 +40,6 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
 
     public async Task<object> StartAsync(DebugStartRequest req, CancellationToken ct)
     {
-        var exe = adapter.Locate() ?? throw new InvalidOperationException("The debugger (netcoredbg) is not installed. Settings › Debugger downloads it.");
         Stop();
         var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => PathUtil.Equal(p.FilePath, req.ProjectPath))
                       ?? throw new InvalidOperationException("The project is not loaded yet");
@@ -47,16 +47,35 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         if (!File.Exists(program)) throw new InvalidOperationException($"{System.IO.Path.GetFileName(program)} is not built yet");
         var cwd = System.IO.Path.GetDirectoryName(req.ProjectPath)!;
 
-        var s = new Session(exe, program, hub, log);
+        Session s;
+        string launchCwd = cwd;
+        var env = LaunchEnv(cwd);
+        string? container = null;
+        if (req.Docker)
+        {
+            var web = File.ReadAllText(req.ProjectPath).Contains("Microsoft.NET.Sdk.Web", StringComparison.OrdinalIgnoreCase);
+            void Progress(string text) => hub.Publish("debug.output", new { category = "console", text });
+            var dc = await docker.PrepareDebugAsync(req.ProjectPath, System.IO.Path.GetDirectoryName(program)!, System.IO.Path.GetFileName(program), web, Progress, ct);
+            container = dc.Container;
+            s = new Session("docker", dc.AdapterArgs, dc.Program, hub, log);
+            launchCwd = dc.Cwd;
+            env = dc.Env;
+        }
+        else
+        {
+            var exe = adapter.Locate() ?? throw new InvalidOperationException("The debugger (netcoredbg) is not installed. Settings › Debugger downloads it.");
+            s = new Session(exe, [], program, hub, log);
+        }
         lock (sync) session = s;
         s.Ended += () =>
         {
             lock (sync)
                 if (session == s) session = null;
+            if (container is not null) _ = docker.RemoveAsync(container);
         };
         try
         {
-            await s.StartAsync(cwd, LaunchEnv(cwd), req.Breakpoints ?? [], req.StopAtEntry, ct);
+            await s.StartAsync(cwd, launchCwd, env, req.Breakpoints ?? [], req.StopAtEntry, ct);
         }
         catch
         {
@@ -116,7 +135,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
 
     // ------------------------------------------------------------------ the DAP session
 
-    private sealed class Session(string exe, string program, EventHub hub, ILogger log) : IDisposable
+    private sealed class Session(string exe, IReadOnlyList<string> adapterArgs, string program, EventHub hub, ILogger log) : IDisposable
     {
         private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> pending = new();
         private readonly TaskCompletionSource initialized = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -130,7 +149,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         public int? StoppedThread { get; private set; }
         public event Action? Ended;
 
-        public async Task StartAsync(string cwd, Dictionary<string, string> env, Dictionary<string, List<BreakpointDto>> breakpoints, bool stopAtEntry, CancellationToken ct)
+        public async Task StartAsync(string hostCwd, string cwd, Dictionary<string, string> env, Dictionary<string, List<BreakpointDto>> breakpoints, bool stopAtEntry, CancellationToken ct)
         {
             var psi = new ProcessStartInfo(exe)
             {
@@ -139,8 +158,9 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                 RedirectStandardError = true,
                 UseShellExecute = false,
                 CreateNoWindow = true,
-                WorkingDirectory = cwd,
+                WorkingDirectory = hostCwd,
             };
+            foreach (var a in adapterArgs) psi.ArgumentList.Add(a);
             psi.ArgumentList.Add("--interpreter=vscode");
             proc = Process.Start(psi) ?? throw new InvalidOperationException("Could not start netcoredbg");
             proc.EnableRaisingEvents = true;
