@@ -1,4 +1,4 @@
-import { Bug, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bug, FlaskConical, GitBranch, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -13,6 +13,9 @@ import { useWorkspace } from '../store/workspace';
 import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
+import { GitLogPanel } from './GitLogPanel';
+import { TestsPanel } from './TestsPanel';
+import { useTests } from '../store/tests';
 import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
 
@@ -26,6 +29,7 @@ export function BottomPanel() {
   const counts = useMemo(() => countProblems(allProblems({ live, build, solution })), [live, build, solution]);
   const procs = useProcs((s) => s.procs);
   const debugStatus = useDebug((s) => s.status);
+  const testsRunning = useTests((s) => s.running.size > 0);
   const [start, setStart] = useState(height);
   if (!visible) return null;
   const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
@@ -34,6 +38,8 @@ export function BottomPanel() {
     { id: 'run', label: 'Run', icon: runningIn('run') ? <LoaderCircle size={14} className="spin" /> : <Play size={14} /> },
     { id: 'debug', label: 'Debug', icon: debugStatus !== 'idle' ? <Bug size={14} style={{ color: debugStatus === 'stopped' ? 'var(--warning)' : 'var(--success)' }} /> : <Bug size={14} /> },
     { id: 'build', label: 'Build', icon: runningIn('build') ? <LoaderCircle size={14} className="spin" /> : <Hammer size={14} /> },
+    { id: 'tests', label: 'Tests', icon: testsRunning ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} /> },
+    { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
     {
       id: 'problems',
       label: 'Problems',
@@ -55,7 +61,7 @@ export function BottomPanel() {
       <section className="bottom" style={{ height }} aria-label="Tool windows">
         <div className="bottom-tabs" role="tablist">
           {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-selected={tab === t.id} className={`dock-tab${tab === t.id ? ' active' : ''}`} onClick={() => useUi.getState().showBottom(t.id)}>
+            <button key={t.id} role="tab" aria-label={t.label} aria-selected={tab === t.id} className={`dock-tab${tab === t.id ? ' active' : ''}`} onClick={() => useUi.getState().showBottom(t.id)}>
               {t.icon}
               <span>{t.label}</span>
               {t.badge}
@@ -71,6 +77,8 @@ export function BottomPanel() {
           {tab === 'debug' && <DebugPanel />}
           {tab === 'build' && <ProcessPane group="build" />}
           {tab === 'terminal' && <ProcessPane group="terminal" />}
+          {tab === 'tests' && <TestsPanel />}
+          {tab === 'git' && <GitLogPanel />}
           {tab === 'problems' && <ProblemsPane />}
           {tab === 'usages' && <UsagesPane />}
         </div>

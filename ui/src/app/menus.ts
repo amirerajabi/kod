@@ -97,6 +97,29 @@ export function appMenu(): MenuItem[] {
         c('view.newTerminal'),
       ],
     },
+    {
+      label: 'Git',
+      submenu: [
+        c('view.commit'),
+        c('git.push'),
+        c('git.pull'),
+        c('git.fetch'),
+        'separator',
+        c('git.branches'),
+        c('git.newBranch'),
+        'separator',
+        c('git.diff'),
+        c('git.annotate'),
+        c('git.rollback'),
+        'separator',
+        c('view.git'),
+        c('git.init'),
+      ],
+    },
+    {
+      label: 'Tests',
+      submenu: [c('run.tests'), c('tests.runFailed'), c('tests.runCurrent'), 'separator', c('view.tests')],
+    },
     { label: 'Help', submenu: [c('view.shortcuts'), c('nav.commands'), 'separator', c('help.checkForUpdates'), c('help.about')] },
   ];
 }

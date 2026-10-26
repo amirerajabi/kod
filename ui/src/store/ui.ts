@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { load, save } from '../lib/storage';
 
-export type DockPanel = 'explorer' | 'search' | 'nuget' | 'structure';
-export type BottomTab = 'run' | 'debug' | 'build' | 'problems' | 'usages' | 'terminal';
+export type DockPanel = 'explorer' | 'commit' | 'search' | 'nuget' | 'structure';
+export type BottomTab = 'run' | 'debug' | 'build' | 'tests' | 'git' | 'problems' | 'usages' | 'terminal';
 export type PaletteMode = 'files' | 'commands' | 'symbols' | 'line';
 
 export interface Toast {

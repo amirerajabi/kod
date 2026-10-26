@@ -1,4 +1,6 @@
 using Kod.Engine.Debugging;
+using Kod.Engine.Git;
+using Kod.Engine.Testing;
 using Kod.Engine.Intel;
 using Kod.Engine.Nuget;
 using Kod.Engine.Processes;
@@ -17,6 +19,10 @@ public sealed record StepBody(string Command);
 public sealed record FrameBody(int FrameId);
 public sealed record VariablesBody(int Reference);
 public sealed record EvaluateBody(string Expression, int? FrameId, string? Context);
+public sealed record PathsBody(List<string> Paths);
+public sealed record CommitBody(string Message, List<string>? Paths, bool Amend);
+public sealed record CheckoutBody(string Name, bool Create);
+public sealed record BlameBody(string Path, string? Text);
 
 public static class Endpoints
 {
@@ -94,6 +100,28 @@ public static class Endpoints
         debug.MapPost("/scopes", (FrameBody b, DebugService d, CancellationToken ct) => d.ScopesAsync(b.FrameId, ct));
         debug.MapPost("/variables", (VariablesBody b, DebugService d, CancellationToken ct) => d.VariablesAsync(b.Reference, ct));
         debug.MapPost("/evaluate", (EvaluateBody b, DebugService d, CancellationToken ct) => d.EvaluateAsync(b.Expression, b.FrameId, b.Context ?? "repl", ct));
+
+        // ---- Git
+        var git = api.MapGroup("/git");
+        git.MapGet("/status", (GitService g, CancellationToken ct) => g.StatusAsync(ct));
+        git.MapGet("/show", (string path, string rev, GitService g, CancellationToken ct) => g.ShowAsync(path, rev, ct));
+        git.MapPost("/stage", async (PathsBody b, GitService g, CancellationToken ct) => { await g.StageAsync(b.Paths, ct); return Results.NoContent(); });
+        git.MapPost("/unstage", async (PathsBody b, GitService g, CancellationToken ct) => { await g.UnstageAsync(b.Paths, ct); return Results.NoContent(); });
+        git.MapPost("/discard", async (PathsBody b, GitService g, CancellationToken ct) => { await g.DiscardAsync(b.Paths, ct); return Results.NoContent(); });
+        git.MapPost("/commit", async (CommitBody b, GitService g, CancellationToken ct) => new { hash = await g.CommitAsync(b.Message, b.Paths, b.Amend, ct) });
+        git.MapGet("/lastMessage", async (GitService g, CancellationToken ct) => new { message = await g.LastMessageAsync(ct) });
+        git.MapGet("/branches", (GitService g, CancellationToken ct) => g.BranchesAsync(ct));
+        git.MapPost("/checkout", async (CheckoutBody b, GitService g, CancellationToken ct) => { await g.CheckoutAsync(b.Name, b.Create, ct); return Results.NoContent(); });
+        git.MapPost("/deleteBranch", async (CheckoutBody b, GitService g, CancellationToken ct) => { await g.DeleteBranchAsync(b.Name, b.Create, ct); return Results.NoContent(); });
+        git.MapGet("/log", (string? path, bool? all, int? max, GitService g, CancellationToken ct) => g.LogAsync(path, all ?? true, max ?? 300, ct));
+        git.MapGet("/commit", (string hash, GitService g, CancellationToken ct) => g.CommitDetailAsync(hash, ct));
+        git.MapPost("/blame", (BlameBody b, GitService g, CancellationToken ct) => g.BlameAsync(b.Path, b.Text, ct));
+        git.MapPost("/init", async (GitService g, CancellationToken ct) => { await g.InitAsync(ct); return Results.NoContent(); });
+
+        // ---- tests
+        api.MapGet("/tests/discover", (TestService t, CancellationToken ct) => t.DiscoverAsync(ct));
+        api.MapPost("/tests/run", (TestRunRequest r, TestService t) => t.Run(r));
+        api.MapGet("/tests/results/{runId}", (string runId, TestService t) => t.Results(runId));
 
         // ---- NuGet
         api.MapGet("/nuget/search", (string q, bool? prerelease, NugetService n, CancellationToken ct) => n.SearchAsync(q, prerelease == true, ct));

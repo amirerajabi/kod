@@ -12,6 +12,9 @@ import { useProcs } from '../store/procs';
 import { onSystemThemeChange, useSettings } from '../store/settings';
 import { applyThemes } from '../theme/applyTheme';
 import { installUpdateWiring } from './updates';
+import { refreshGit } from '../store/git';
+import { discoverTests } from '../store/tests';
+import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
 import { registerDebugHover } from '../editor/debugEditor';
 import { toast, useUi } from '../store/ui';
@@ -50,6 +53,8 @@ export async function boot(): Promise<void> {
   useWorkspace.setState({ meta });
   registerCSharp({ tokenTypes: meta.tokenTypes, tokenModifiers: meta.tokenModifiers });
   registerDebugHover();
+  registerTestLenses();
+  window.addEventListener('focus', () => refreshGit(100));
 
   let lastRoot: string | undefined;
   let lastState: string | undefined;
@@ -63,12 +68,21 @@ export async function boot(): Promise<void> {
           loadBreakpoints();
           if (ws.root) void restoreTabs(ws.root);
         }
-        if (ws.state === 'ready' && lastState !== 'ready') refreshAllDiagnostics();
+        if (ws.state === 'ready' && lastState !== 'ready') {
+          refreshAllDiagnostics();
+          refreshGit(0);
+          discoverTests(500);
+        }
         lastState = ws.state;
         break;
       }
       case 'fs.changed':
         for (const f of e.files) onDiskChange(f);
+        refreshGit(600);
+        if (e.files.some((f) => /\.(cs|csproj)$/i.test(f))) discoverTests(2500);
+        break;
+      case 'git.changed':
+        refreshGit(0);
         break;
       case 'debug.state':
       case 'debug.stopped':

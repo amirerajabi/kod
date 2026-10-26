@@ -1,8 +1,9 @@
-import { FolderTree, ListTree, Package, Search } from 'lucide-react';
+import { FolderTree, GitCommitHorizontal, ListTree, Package, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { shortcutOf } from '../app/commands';
 import { DOCK_MAX, DOCK_MIN, useUi, type DockPanel } from '../store/ui';
 import { Splitter } from './common/Splitter';
+import { CommitPanel } from './CommitPanel';
 import { Explorer } from './Explorer';
 import { NugetPanel } from './NugetPanel';
 import { SearchPanel } from './SearchPanel';
@@ -10,6 +11,7 @@ import { StructurePanel } from './StructurePanel';
 
 const TABS: { id: DockPanel; label: string; Icon: typeof FolderTree; command: string }[] = [
   { id: 'explorer', label: 'Explorer', Icon: FolderTree, command: 'view.explorer' },
+  { id: 'commit', label: 'Commit', Icon: GitCommitHorizontal, command: 'view.commit' },
   { id: 'structure', label: 'Structure', Icon: ListTree, command: 'view.structure' },
   { id: 'search', label: 'Search', Icon: Search, command: 'nav.findInFiles' },
   { id: 'nuget', label: 'NuGet', Icon: Package, command: 'view.nuget' },
@@ -39,6 +41,7 @@ export function Dock() {
         </div>
         <div className="dock-body" role="tabpanel">
           {dock === 'explorer' && <Explorer />}
+          {dock === 'commit' && <CommitPanel />}
           {dock === 'structure' && <StructurePanel />}
           {dock === 'search' && <SearchPanel />}
           {dock === 'nuget' && <NugetPanel />}

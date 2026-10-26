@@ -1,5 +1,7 @@
 import { useDebug } from '../store/debug';
-import { Bug, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Square, Sun, SunMoon } from 'lucide-react';
+import { useGit } from '../store/git';
+import { showBranchMenu } from './GitBranchMenu';
+import { Bug, GitBranch, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Square, Sun, SunMoon } from 'lucide-react';
 import { openWorkspace } from '../app/actions';
 import { runCommand, shortcutOf } from '../app/commands';
 import { appMenu } from '../app/menus';
@@ -26,6 +28,7 @@ export function TopBar() {
   const theme = useSettings((s) => s.settings.theme);
   useProcs((s) => s.procs); // re-render on process changes
   const debugStatus = useDebug((s) => s.status);
+  const gitBranch = useGit((s) => s.status?.branch);
   const running = runningOf('run');
   const building = runningOf('build');
   const project = ws.projects.find((p) => samePath(p.path, startup));
@@ -74,7 +77,13 @@ export function TopBar() {
         <span>{ws.root ? basename(ws.target ?? ws.root) : 'Open…'}</span>
         <ChevronDown size={13} className="muted" />
       </button>
-      {ws.branch && <span className="muted" style={{ fontSize: 'var(--text-sm)', whiteSpace: 'nowrap' }} title="Git branch">⎇ {ws.branch}</span>}
+      {(gitBranch || ws.branch) && (
+        <button className="ws-pill" style={{ fontWeight: 400 }} title="Git branches" onClick={(e) => void showBranchMenu(e.currentTarget)}>
+          <GitBranch size={14} className="muted" />
+          <span>{gitBranch ?? ws.branch}</span>
+          <ChevronDown size={13} className="muted" />
+        </button>
+      )}
       <div className="flex-1" />
       <button type="button" className="palette-trigger" onClick={() => useUi.getState().openPalette('files')} title="Search files, symbols (#) and actions (>)">
         <Search size={14} />
