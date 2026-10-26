@@ -1,7 +1,8 @@
 // Building blocks of the Settings sections (Rowlit): cards that group rows, rows (label + hint on the left, the control
 // on the right), toggle rows, and the small Select / number helpers. Rows hide themselves when the settings search
 // does not match their label, hint or keywords; a card without visible rows hides via CSS (settings.css).
-import { useContext, type ReactNode } from 'react';
+import { useContext, useEffect, useState, type ReactNode } from 'react';
+import { firstFamily, installedFonts, quoteFamily } from '../../theme/fonts';
 import { matchesQuery, SettingsQuery } from './search';
 
 export function Card({ title, description, children }: { title: string; description?: ReactNode; children: ReactNode }) {
@@ -84,6 +85,48 @@ export function Num({ id, value, min, max, onChange }: { id: string; value: numb
         if (Number.isFinite(n) && n >= min && n <= max) onChange(n);
       }}
     />
+  );
+}
+
+/**
+ * A font family box: type a name or a CSS font list, or pick an installed family from the drop-down. A picked or
+ * typed single family is committed as `'Family', <fallback>` (empty = `''`, the default).
+ */
+export function FontPicker({ id, value, kind, placeholder, onChange }: { id: string; value: string; kind: 'mono' | 'ui'; placeholder?: string; onChange: (v: string) => void }) {
+  const [families, setFamilies] = useState<string[]>([]);
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  useEffect(() => void installedFonts(kind).then(setFamilies), [kind]);
+  const commit = (v: string) => {
+    const t = v.trim();
+    const next = !t ? '' : t.includes(',') || kind === 'ui' ? t : `${quoteFamily(t)}, monospace`;
+    if (next !== value) onChange(next);
+    else setDraft(value);
+  };
+  return (
+    <>
+      <input
+        id={id}
+        className="input settings-text"
+        style={{ width: 260, fontFamily: draft ? quoteFamily(draft.includes(',') ? draft : firstFamily(draft)) : undefined }}
+        list={`${id}-list`}
+        value={draft}
+        placeholder={placeholder}
+        spellCheck={false}
+        onChange={(e) => {
+          setDraft(e.target.value);
+          // picking from the list fires one change with the exact family name
+          if (families.includes(e.target.value)) commit(e.target.value);
+        }}
+        onBlur={() => commit(draft)}
+        onKeyDown={(e) => e.key === 'Enter' && commit(draft)}
+      />
+      <datalist id={`${id}-list`}>
+        {families.map((f) => (
+          <option key={f} value={f} />
+        ))}
+      </datalist>
+    </>
   );
 }
 

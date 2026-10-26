@@ -1,5 +1,5 @@
 // Kod desktop shell: one window, the UI on kod://app (or the Vite dev server), the engine as a sidecar.
-import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, Notification, protocol, screen, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, net, Notification, protocol, safeStorage, screen, shell } from 'electron';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -198,6 +198,40 @@ ipcMain.handle('update:install', async () => (await updaterReady).quitAndInstall
 ipcMain.handle('update:cancel', async () => (await updaterReady).stopDownload());
 ipcMain.handle('notify', (_e, n: { title?: string; body?: string }) => {
   if (win && !win.isFocused() && Notification.isSupported()) new Notification({ title: String(n?.title ?? 'Kod'), body: String(n?.body ?? ''), icon: iconFile }).show();
+});
+
+// ---- secrets (AI API keys): encrypted with the OS keychain (DPAPI / Keychain / libsecret) in userData/secrets.json
+const secretsFile = () => path.join(app.getPath('userData'), 'secrets.json');
+function readSecrets(): Record<string, string> {
+  try {
+    return JSON.parse(fs.readFileSync(secretsFile(), 'utf8')) as Record<string, string>;
+  } catch {
+    return {};
+  }
+}
+const secretName = (name: unknown) => {
+  const s = String(name ?? '');
+  if (!/^[\w.-]{1,64}$/.test(s)) throw new Error('Invalid secret name');
+  return s;
+};
+ipcMain.handle('secrets:has', (_e, name: string) => !!readSecrets()[secretName(name)]);
+ipcMain.handle('secrets:get', (_e, name: string) => {
+  const stored = readSecrets()[secretName(name)];
+  if (!stored || !safeStorage.isEncryptionAvailable()) return null;
+  try {
+    return safeStorage.decryptString(Buffer.from(stored, 'base64'));
+  } catch {
+    return null;
+  }
+});
+ipcMain.handle('secrets:set', (_e, name: string, value: string | null) => {
+  const all = readSecrets();
+  const n = secretName(name);
+  if (value) {
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('This system has no secure storage for keys');
+    all[n] = safeStorage.encryptString(String(value)).toString('base64');
+  } else delete all[n];
+  fs.writeFileSync(secretsFile(), JSON.stringify(all, null, 2), { mode: 0o600 });
 });
 
 app.on('second-instance', () => {

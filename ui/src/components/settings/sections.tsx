@@ -3,9 +3,9 @@ import { useEffect, useState } from 'react';
 import { api, errorText } from '../../api/client';
 import { keyLabel } from '../../app/commands';
 import { isMac } from '../../platform';
-import { useSettings } from '../../store/settings';
+import { DEFAULT_SETTINGS, useSettings } from '../../store/settings';
 import { toast, useUi } from '../../store/ui';
-import { Card, Num, Row, Segmented, Select, ToggleRow } from './controls';
+import { Card, FontPicker, Num, Row, Segmented, Select, ToggleRow } from './controls';
 import { AppThemePicker, CodeThemePicker } from './ThemePicker';
 
 const useS = () => useSettings((x) => x.settings);
@@ -68,14 +68,31 @@ export function AppearanceSection() {
           <CodeThemePicker />
         </Row>
       </Card>
-      <Card title="Text">
+      <Card title="Fonts" description="Pick an installed font or type a CSS font list.">
+        <Row label="Editor font" htmlFor="set-ff" hint="Code editor, diffs and output" keywords="font family monospace jetbrains mono cascadia consolas fira code editor">
+          <FontPicker id="set-ff" kind="mono" value={s.fontFamily} onChange={(v) => up({ fontFamily: v || DEFAULT_SETTINGS.fontFamily })} />
+        </Row>
         <Row label="Editor font size" htmlFor="set-fs" hint={`${isMac ? '⌘' : 'Ctrl'} + mouse wheel over the editor changes it too`} keywords="font text size zoom">
           <Num id="set-fs" value={s.fontSize} min={9} max={32} onChange={(v) => up({ fontSize: v })} />
         </Row>
-        <Row label="Editor font" htmlFor="set-ff" hint="A CSS font list; the first installed one is used" keywords="font family monospace jetbrains mono cascadia consolas">
-          <input id="set-ff" className="input settings-text" style={{ width: 260 }} value={s.fontFamily} onChange={(e) => up({ fontFamily: e.target.value })} />
-        </Row>
         <ToggleRow id="set-lig" label="Font ligatures" hint="=> != >= drawn as one glyph where the font supports it" keywords="ligatures font" checked={s.ligatures} onChange={(v) => up({ ligatures: v })} />
+        <Row label="UI font" htmlFor="set-uif" hint="Menus, panels, dialogs and tool windows; empty = the system font" keywords="font family interface ui window menu segoe inter">
+          <FontPicker id="set-uif" kind="ui" value={s.uiFontFamily} placeholder="System default" onChange={(v) => up({ uiFontFamily: v })} />
+        </Row>
+        <Row label="UI font size" htmlFor="set-uis" keywords="font size interface ui window zoom">
+          <Num id="set-uis" value={s.uiFontSize} min={10} max={20} onChange={(v) => up({ uiFontSize: v })} />
+        </Row>
+        <Row label="Terminal font" htmlFor="set-tf" hint="Empty = the editor font" keywords="font family terminal console shell">
+          <FontPicker id="set-tf" kind="mono" value={s.terminalFontFamily} placeholder="Same as the editor" onChange={(v) => up({ terminalFontFamily: v })} />
+        </Row>
+        <Row label="Terminal font size" htmlFor="set-tfs" hint="0 = one smaller than the editor" keywords="font size terminal console">
+          <Num id="set-tfs" value={s.terminalFontSize} min={0} max={32} onChange={(v) => up({ terminalFontSize: v })} />
+        </Row>
+        <Row label="Reset fonts" keywords="font reset default">
+          <button type="button" className="btn" onClick={() => up({ fontFamily: DEFAULT_SETTINGS.fontFamily, fontSize: DEFAULT_SETTINGS.fontSize, uiFontFamily: '', uiFontSize: DEFAULT_SETTINGS.uiFontSize, terminalFontFamily: '', terminalFontSize: 0 })}>
+            Restore defaults
+          </button>
+        </Row>
       </Card>
     </>
   );

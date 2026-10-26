@@ -21,6 +21,31 @@ import { gitFetch, gitPull, gitPush, initRepository, newBranch, openDiff, rollba
 import { runFailed, runTests, useTests } from '../store/tests';
 import { useTerminals } from '../store/terminals';
 import { samePath } from '../lib/paths';
+import { newChat, sendMessage } from '../store/ai';
+
+function toggleAi(): void {
+  const ui = useUi.getState();
+  ui.setLayout({ aiVisible: !ui.aiVisible });
+  if (!ui.aiVisible) focusAi();
+}
+
+function focusAi(): void {
+  if (!useUi.getState().aiVisible) useUi.getState().setLayout({ aiVisible: true });
+  setTimeout(() => window.dispatchEvent(new Event('kod:focus-ai')), 0);
+}
+
+/** The selection (or the whole active file) with a request, sent to the assistant. */
+function askAboutCode(request: string): void {
+  const ed = getEditor();
+  const model = ed?.getModel();
+  const sel = ed?.getSelection();
+  if (!model) {
+    toast('info', 'Open a file first');
+    return;
+  }
+  const whole = !sel || sel.isEmpty();
+  void sendMessage(whole ? `${request}\n\n(The whole active file.)` : request, whole ? undefined : { selection: model.getValueInRange(sel), startLine: sel.startLineNumber });
+}
 
 function runCurrentFileTests(): void {
   const f = currentFilePath();
@@ -125,6 +150,14 @@ export const COMMANDS: Command[] = [
   { id: 'git.annotate', title: 'Annotate with Git Blame', category: 'Git', run: () => toggleBlame() },
   { id: 'git.inlineBlame', title: 'Toggle Inline Blame (current line)', category: 'Git', run: () => useSettings.getState().update({ inlineBlame: !useSettings.getState().settings.inlineBlame }) },
   { id: 'git.remotes', title: 'Manage Remotes…', category: 'Git', run: needsRoot(() => useUi.getState().set({ remotesOpen: true })) },
+  { id: 'view.ai', title: 'AI Assistant', category: 'AI', keys: ['Alt+2'], run: toggleAi, global: true },
+  { id: 'ai.ask', title: 'Ask AI…', category: 'AI', keys: ['Ctrl+Alt+Space'], run: focusAi, global: true },
+  { id: 'ai.explain', title: 'AI: Explain This Code', category: 'AI', run: () => askAboutCode('Explain what this code does, step by step.') },
+  { id: 'ai.fix', title: 'AI: Find and Fix Problems', category: 'AI', run: () => askAboutCode('Find bugs or problems in this code and fix them. Build afterwards to check.') },
+  { id: 'ai.tests', title: 'AI: Write Unit Tests', category: 'AI', run: () => askAboutCode('Write unit tests for this code in the solution\'s test project (create one if there is none), then run them.') },
+  { id: 'ai.doc', title: 'AI: Add Documentation Comments', category: 'AI', run: () => askAboutCode('Add XML documentation comments to the public members of this code.') },
+  { id: 'ai.newChat', title: 'AI: New Chat', category: 'AI', run: () => { newChat(); focusAi(); } },
+  { id: 'ai.settings', title: 'AI Settings…', category: 'AI', run: () => openSettings('ai') },
   { id: 'git.rollback', title: 'Rollback Changes in This File…', category: 'Git', run: () => { const f = currentFilePath(); if (f) void rollback([f]); } },
   { id: 'git.init', title: 'Create Git Repository', category: 'Git', run: needsRoot(() => initRepository()) },
 

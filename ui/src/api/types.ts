@@ -193,4 +193,9 @@ export type EngineEvent =
   | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended'; [k: string]: unknown }
   | { type: 'git.changed' }
   | { type: 'term.output'; id: string; data: string }
-  | { type: 'term.exit'; id: string; exitCode: number };
+  | { type: 'term.exit'; id: string; exitCode: number }
+  | { type: 'ai.delta' | 'ai.thinking' | 'ai.notice'; sessionId: string; text: string }
+  | { type: 'ai.tool'; sessionId: string; callId: string; name: string; title: string; status: AiToolStatus; input?: string; output?: string; changedFile?: string }
+  | { type: 'ai.done'; sessionId: string; stopReason: string; error?: string; usage?: { input: number; output: number; cached: number } };
+
+export type AiToolStatus = 'approval' | 'running' | 'done' | 'error' | 'denied';

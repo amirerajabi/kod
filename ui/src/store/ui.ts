@@ -42,6 +42,9 @@ interface Layout {
   bottomVisible: boolean;
   bottomHeight: number;
   bottom: BottomTab;
+  /** The AI assistant window on the right. */
+  aiVisible: boolean;
+  aiWidth: number;
 }
 
 interface UiState extends Layout {
@@ -68,16 +71,18 @@ interface UiState extends Layout {
   dismiss(id: number): void;
 }
 
-const LAYOUT_DEFAULT: Layout = { dockVisible: true, dockWidth: 300, dock: 'explorer', bottomVisible: false, bottomHeight: 260, bottom: 'run' };
+const LAYOUT_DEFAULT: Layout = { dockVisible: true, dockWidth: 300, dock: 'explorer', bottomVisible: false, bottomHeight: 260, bottom: 'run', aiVisible: false, aiWidth: 400 };
 let toastId = 0;
 
 export const DOCK_MIN = 200;
 export const DOCK_MAX = 640;
+export const AI_MIN = 300;
+export const AI_MAX = 900;
 
 export const useUi = create<UiState>((set, get) => {
   const persist = () => {
     const s = get();
-    save('layout', { dockVisible: s.dockVisible, dockWidth: s.dockWidth, dock: s.dock, bottomVisible: s.bottomVisible, bottomHeight: s.bottomHeight, bottom: s.bottom });
+    save('layout', { dockVisible: s.dockVisible, dockWidth: s.dockWidth, dock: s.dock, bottomVisible: s.bottomVisible, bottomHeight: s.bottomHeight, bottom: s.bottom, aiVisible: s.aiVisible, aiWidth: s.aiWidth });
   };
   return {
     ...load<Layout>('layout', LAYOUT_DEFAULT),

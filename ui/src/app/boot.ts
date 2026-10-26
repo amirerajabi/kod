@@ -11,9 +11,11 @@ import { useProblems } from '../store/problems';
 import { useProcs } from '../store/procs';
 import { onSystemThemeChange, useSettings } from '../store/settings';
 import { applyThemes } from '../theme/applyTheme';
+import { applyFonts } from '../theme/fonts';
 import { installUpdateWiring } from './updates';
 import { refreshGit } from '../store/git';
-import { onTerminalEvent, retheme } from '../store/terminals';
+import { onTerminalEvent, refont, retheme } from '../store/terminals';
+import { newChat, onAiEvent, refreshKeys, useAi } from '../store/ai';
 import { discoverTests } from '../store/tests';
 import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
@@ -43,8 +45,11 @@ export async function boot(): Promise<void> {
   if (platform.titleBar === 'inset') document.documentElement.classList.add('titlebar-inset');
 
   applyThemes();
+  applyFonts();
   useSettings.subscribe((s, prev) => {
     const a = s.settings, b = prev.settings;
+    if (a.uiFontFamily !== b.uiFontFamily || a.uiFontSize !== b.uiFontSize) applyFonts();
+    if (a.fontFamily !== b.fontFamily || a.fontSize !== b.fontSize || a.terminalFontFamily !== b.terminalFontFamily || a.terminalFontSize !== b.terminalFontSize) refont();
     if (a.theme !== b.theme || a.appThemeLight !== b.appThemeLight || a.appThemeDark !== b.appThemeDark || a.codeTheme !== b.codeTheme) {
       applyThemes();
       retheme();
@@ -58,6 +63,7 @@ export async function boot(): Promise<void> {
   registerCSharp({ tokenTypes: meta.tokenTypes, tokenModifiers: meta.tokenModifiers });
   registerDebugHover();
   registerTestLenses();
+  void refreshKeys();
   window.addEventListener('focus', () => refreshGit(100));
 
   let lastRoot: string | undefined;
@@ -89,6 +95,13 @@ export async function boot(): Promise<void> {
       case 'term.exit':
         onTerminalEvent(e);
         break;
+      case 'ai.delta':
+      case 'ai.thinking':
+      case 'ai.notice':
+      case 'ai.tool':
+      case 'ai.done':
+        onAiEvent(e);
+        break;
       case 'git.changed':
         refreshGit(0);
         break;
@@ -108,6 +121,8 @@ export async function boot(): Promise<void> {
   platform.onEngineRestarted((info) => {
     setEngineInfo(info);
     void connectEvents();
+    // the assistant's conversations lived in the old engine
+    if (useAi.getState().busy) newChat();
     toast('warning', 'The engine restarted', 'Projects are being reloaded.');
     const root = useWorkspace.getState().ws.root;
     if (root) void useWorkspace.getState().open(root);

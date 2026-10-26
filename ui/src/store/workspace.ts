@@ -40,7 +40,8 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     const prev = get().ws;
     const rootChanged = !samePath(prev.root, ws.root);
     let startup = rootChanged ? (ws.root ? loadRaw<Record<string, string>>('startup', {})[ws.root] ?? null : null) : get().startup;
-    if (ws.state === 'ready' && (!startup || !ws.projects.some((p) => samePath(p.path, startup)))) {
+    // the run configuration must be runnable (a saved class library or test project is replaced when one is)
+    if (ws.state === 'ready' && (!startup || !ws.projects.some((p) => samePath(p.path, startup) && (p.runnable || !ws.projects.some((q) => q.runnable))))) {
       startup = ws.projects.find((p) => p.runnable)?.path ?? ws.projects[0]?.path ?? null;
     }
     set({ ws, startup, ...(rootChanged ? { files: null } : {}) });

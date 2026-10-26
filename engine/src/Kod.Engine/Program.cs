@@ -67,6 +67,11 @@ services.AddSingleton<DebugService>();
 services.AddSingleton<Kod.Engine.Git.GitService>();
 services.AddSingleton<Kod.Engine.Testing.TestService>();
 services.AddSingleton<TerminalService>();
+services.AddHttpClient("ai", c => c.Timeout = TimeSpan.FromMinutes(15));
+services.AddSingleton<Kod.Engine.Ai.AiTools>();
+services.AddSingleton<Kod.Engine.Ai.AnthropicBackend>();
+services.AddSingleton<Kod.Engine.Ai.OpenAiCompatibleBackend>();
+services.AddSingleton<Kod.Engine.Ai.AiService>();
 services.AddHostedService<ParentWatchdog>();
 
 var app = builder.Build();

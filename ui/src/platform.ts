@@ -28,6 +28,10 @@ export interface Platform {
   quitAndInstall?(): Promise<boolean>;
   cancelUpdateDownload?(): Promise<boolean>;
   showNotification?(n: { title: string; body: string }): void;
+  // ---- secrets (AI API keys); the desktop encrypts them with the OS keychain, the browser keeps them for the tab only
+  hasSecret(name: string): Promise<boolean>;
+  getSecret(name: string): Promise<string | null>;
+  setSecret(name: string, value: string | null): Promise<void>;
 }
 
 export type UpdateMode = 'install' | 'notify' | 'disabled';
@@ -83,6 +87,17 @@ function browserPlatform(): Platform {
     },
     onEngineRestarted() {
       return () => {};
+    },
+    // npm run dev in a browser: no keychain, so keys live only as long as the tab
+    async hasSecret(name) {
+      return !!sessionStorage.getItem(`kod.secret.${name}`);
+    },
+    async getSecret(name) {
+      return sessionStorage.getItem(`kod.secret.${name}`);
+    },
+    async setSecret(name, value) {
+      if (value) sessionStorage.setItem(`kod.secret.${name}`, value);
+      else sessionStorage.removeItem(`kod.secret.${name}`);
     },
   };
 }
