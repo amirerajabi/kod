@@ -1,0 +1,69 @@
+import { RefreshCw } from 'lucide-react';
+import { useEffect } from 'react';
+import { boot } from './app/boot';
+import { installKeys } from './app/commands';
+import { BottomPanel } from './components/BottomPanel';
+import { CommandPalette } from './components/CommandPalette';
+import { MenuHost } from './components/common/Menu';
+import { ConfirmDialog, PromptDialog, Toasts } from './components/common/Overlays';
+import { Dock } from './components/Dock';
+import { EditorArea } from './components/EditorArea';
+import { NewProjectDialog } from './components/NewProjectDialog';
+import { SettingsDialog, ShortcutSheet } from './components/SettingsDialog';
+import { StatusBar } from './components/StatusBar';
+import { TopBar } from './components/TopBar';
+import { Welcome } from './components/Welcome';
+import { useUi } from './store/ui';
+import { useWorkspace } from './store/workspace';
+
+export default function App() {
+  const root = useWorkspace((s) => s.ws.root);
+
+  useEffect(() => {
+    void boot();
+    return installKeys();
+  }, []);
+
+  return (
+    <div className="app">
+      <TopBar />
+      <EngineBanner />
+      <div className="main">
+        {root ? (
+          <>
+            <Dock />
+            <div className="center">
+              <EditorArea />
+              <BottomPanel />
+            </div>
+          </>
+        ) : (
+          <div className="center">
+            <Welcome />
+          </div>
+        )}
+      </div>
+      <StatusBar />
+      <MenuHost />
+      <CommandPalette />
+      <SettingsDialog />
+      <ShortcutSheet />
+      <NewProjectDialog />
+      <PromptDialog />
+      <ConfirmDialog />
+      <Toasts />
+    </div>
+  );
+}
+
+function EngineBanner() {
+  const err = useUi((s) => s.engineError);
+  if (!err) return null;
+  return (
+    <div className="engine-banner" role="alert">
+      <span>{err}</span>
+      <span className="muted">Retrying…</span>
+      <RefreshCw size={12} className="spin" />
+    </div>
+  );
+}

@@ -1,0 +1,10 @@
+bin/
+obj/
+node_modules/
+dist/
+out/
+engine/publish/
+*.user
+.vs/
+.idea/
+.DS_Store

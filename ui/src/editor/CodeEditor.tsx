@@ -1,0 +1,276 @@
+import { ChevronRight } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { api } from '../api/client';
+import type { LocationDto, SymbolDto } from '../api/types';
+import { relative } from '../lib/paths';
+import { saveHooks, useEditors } from '../store/editors';
+import { useSettings } from '../store/settings';
+import { useUi } from '../store/ui';
+import { useUsages } from '../store/usages';
+import { useWorkspace } from '../store/workspace';
+import { scheduleDiagnostics } from './csharp';
+import { entryOfModel, getEntry } from './models';
+import { monaco } from './monaco';
+
+let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
+export const getEditor = () => editorInstance;
+
+/** Runs a Monaco action on the editor (format, rename, go to definition...). */
+export function editorAction(id: string): void {
+  const ed = editorInstance;
+  if (!ed) return;
+  ed.focus();
+  void ed.getAction(id)?.run();
+}
+
+export async function findUsages(): Promise<void> {
+  const ed = editorInstance;
+  const model = ed?.getModel();
+  const entry = entryOfModel(model);
+  const pos = ed?.getPosition();
+  if (!ed || !model || !entry || !pos || model.getLanguageId() !== 'csharp') return;
+  const word = model.getWordAtPosition(pos)?.word ?? 'symbol';
+  useUsages.getState().set({ title: word, loading: true, items: [] });
+  useUi.getState().showBottom('usages');
+  try {
+    const items = await api.post<LocationDto[]>('/intel/references', { path: entry.path, text: model.getValue(), line: pos.lineNumber, column: pos.column });
+    useUsages.getState().set({ items, loading: false });
+  } catch {
+    useUsages.getState().set({ items: [], loading: false });
+  }
+}
+
+function editorOptions(): monaco.editor.IEditorOptions & monaco.editor.IGlobalEditorOptions {
+  const s = useSettings.getState().settings;
+  return {
+    fontFamily: s.fontFamily,
+    fontSize: s.fontSize,
+    lineHeight: Math.round(s.fontSize * 1.5),
+    fontLigatures: s.ligatures,
+    tabSize: s.tabSize,
+    insertSpaces: s.insertSpaces,
+    wordWrap: s.wordWrap ? 'on' : 'off',
+    minimap: { enabled: s.minimap, renderCharacters: false, scale: 1, maxColumn: 100 },
+    stickyScroll: { enabled: s.stickyScroll },
+    renderWhitespace: s.renderWhitespace,
+  };
+}
+
+export function CodeEditor() {
+  const host = useRef<HTMLDivElement>(null);
+  const active = useEditors((s) => s.active);
+  const reveal = useEditors((s) => s.reveal);
+  const settings = useSettings((s) => s.settings);
+  const [symbols, setSymbols] = useState<SymbolDto[]>([]);
+  const [crumbs, setCrumbs] = useState<SymbolDto[]>([]);
+  const symbolsRef = useRef<SymbolDto[]>([]);
+
+  // create once
+  useEffect(() => {
+    const ed = monaco.editor.create(host.current!, {
+      ...editorOptions(),
+      model: null,
+      automaticLayout: true,
+      theme: 'kod',
+      smoothScrolling: true,
+      cursorBlinking: 'smooth',
+      cursorSmoothCaretAnimation: 'on',
+      bracketPairColorization: { enabled: true },
+      guides: { bracketPairs: 'active', indentation: true },
+      'semanticHighlighting.enabled': true,
+      fixedOverflowWidgets: true,
+      scrollBeyondLastLine: false,
+      renderLineHighlight: 'all',
+      suggest: { showStatusBar: true, preview: true, selectionMode: 'always' },
+      quickSuggestions: { other: true, comments: false, strings: false },
+      inlayHints: { enabled: 'on' },
+      lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.OnCode },
+      padding: { top: 6 },
+      mouseWheelZoom: true,
+      linkedEditing: true,
+      'bracketPairColorization.independentColorPoolPerBracketType': true,
+    } as monaco.editor.IStandaloneEditorConstructionOptions);
+    editorInstance = ed;
+
+    // Rider keys on top of Monaco's own (F12, Shift+F12, F2, Ctrl+Space, Ctrl+Shift+Space...)
+    ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Enter, () => ed.trigger('kod', 'editor.action.quickFix', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyL, () => ed.trigger('kod', 'editor.action.formatDocument', {}));
+    ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.F7, () => void findUsages());
+    ed.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F6, () => ed.trigger('kod', 'editor.action.rename', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => ed.trigger('kod', 'editor.action.revealDefinition', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => ed.trigger('kod', 'editor.action.goToImplementation', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Slash, () => ed.trigger('kod', 'editor.action.commentLine', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyD, () => ed.trigger('kod', 'editor.action.copyLinesDownAction', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyY, () => ed.trigger('kod', 'editor.action.deleteLines', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyW, () => ed.trigger('kod', 'editor.action.smartSelect.expand', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyW, () => ed.trigger('kod', 'editor.action.smartSelect.shrink', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.UpArrow, () => ed.trigger('kod', 'editor.action.moveLinesUpAction', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.DownArrow, () => ed.trigger('kod', 'editor.action.moveLinesDownAction', {}));
+
+    ed.onDidChangeCursorSelection((e) => {
+      const model = ed.getModel();
+      const sel = e.selection;
+      useUi.getState().set({ cursor: { line: sel.positionLineNumber, column: sel.positionColumn, selected: model ? model.getValueLengthInRange(sel) : 0 } });
+      setCrumbs(crumbsAt(symbolsRef.current, sel.positionLineNumber, sel.positionColumn));
+    });
+    ed.onDidChangeModelContent(() => {
+      const entry = entryOfModel(ed.getModel());
+      if (!entry) return;
+      scheduleDiagnostics(entry);
+      if (useSettings.getState().settings.autoSave === 'afterDelay') scheduleAutoSave(entry.path);
+    });
+    ed.onDidBlurEditorText(() => {
+      if (useSettings.getState().settings.autoSave === 'onFocusChange') void useEditors.getState().saveAll();
+    });
+
+    saveHooks.formatBeforeSave = async (path) => {
+      const entry = getEntry(path);
+      if (!entry || ed.getModel() !== entry.model) return;
+      await ed.getAction('editor.action.formatDocument')?.run();
+    };
+
+    return () => {
+      editorInstance = null;
+      ed.dispose();
+    };
+  }, []);
+
+  // settings
+  useEffect(() => {
+    editorInstance?.updateOptions(editorOptions());
+  }, [settings]);
+
+  // switch the model with the active tab, keeping each tab's scroll / cursor / folding
+  const prevPath = useRef<string | null>(null);
+  useEffect(() => {
+    const ed = editorInstance;
+    if (!ed) return;
+    if (prevPath.current) {
+      const prev = getEntry(prevPath.current);
+      if (prev && ed.getModel() === prev.model) prev.viewState = ed.saveViewState();
+    }
+    prevPath.current = active;
+    const entry = active ? getEntry(active) : undefined;
+    ed.setModel(entry?.model ?? null);
+    if (entry) {
+      ed.updateOptions({ readOnly: entry.readOnly, wordBasedSuggestions: entry.model.getLanguageId() === 'csharp' ? 'off' : 'currentDocument' });
+      if (entry.viewState) ed.restoreViewState(entry.viewState);
+      scheduleDiagnostics(entry, 0);
+      ed.focus();
+    }
+    setSymbols([]);
+    symbolsRef.current = [];
+    setCrumbs([]);
+  }, [active]);
+
+  // reveal a location (go to, search result, problem)
+  useEffect(() => {
+    const ed = editorInstance;
+    if (!ed || !reveal || !active || reveal.path !== active) return;
+    const range = new monaco.Range(reveal.line, reveal.column, reveal.endLine ?? reveal.line, reveal.endColumn ?? reveal.column);
+    ed.setSelection(range);
+    ed.revealRangeInCenterIfOutsideViewport(range, monaco.editor.ScrollType.Smooth);
+    ed.focus();
+  }, [reveal, active]);
+
+  // document symbols for the breadcrumbs (C# only), refreshed after edits
+  useEffect(() => {
+    const entry = active ? getEntry(active) : undefined;
+    if (!entry || entry.model.getLanguageId() !== 'csharp' || entry.model.uri.scheme !== 'file') return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    const load = async () => {
+      try {
+        const res = await api.post<SymbolDto[]>('/intel/symbols', { path: entry.path, text: entry.model.getValue() });
+        if (cancelled) return;
+        symbolsRef.current = res;
+        setSymbols(res);
+        const p = editorInstance?.getPosition();
+        if (p) setCrumbs(crumbsAt(res, p.lineNumber, p.column));
+      } catch {
+        /* engine busy */
+      }
+    };
+    void load();
+    const sub = entry.model.onDidChangeContent(() => {
+      clearTimeout(timer);
+      timer = setTimeout(load, 1200);
+    });
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      sub.dispose();
+    };
+  }, [active]);
+
+  const root = useWorkspace((s) => s.ws.root);
+  const tab = useEditors((s) => s.tabs.find((t) => t.path === s.active));
+  const rel = tab ? (tab.kind === 'metadata' ? tab.title : relative(root, tab.path)) : '';
+
+  return (
+    <>
+      {tab && (
+        <div className="breadcrumbs" aria-label="Breadcrumbs">
+          {rel.split(/[\\/]/).map((seg, i, arr) => (
+            <span key={`p${i}`} className="crumb" style={{ cursor: 'default' }}>
+              {seg}
+              {(i < arr.length - 1 || crumbs.length > 0) && <ChevronRight size={12} />}
+            </span>
+          ))}
+          {crumbs.map((c, i) => (
+            <span
+              key={`s${i}`}
+              className="crumb"
+              onClick={() => {
+                const ed = editorInstance;
+                if (!ed) return;
+                ed.setPosition({ lineNumber: c.selectionRange.startLine, column: c.selectionRange.startColumn });
+                ed.revealLineInCenterIfOutsideViewport(c.selectionRange.startLine);
+                ed.focus();
+              }}
+            >
+              {c.name}
+              {i < crumbs.length - 1 && <ChevronRight size={12} />}
+            </span>
+          ))}
+          {symbols.length === 0 && null}
+        </div>
+      )}
+      {tab?.kind === 'metadata' && <div className="readonly-banner">Decompiled declarations from metadata (read-only). Members have no bodies.</div>}
+      <div className="editor-host">
+        <div ref={host} className="monaco" />
+      </div>
+    </>
+  );
+}
+
+function crumbsAt(symbols: SymbolDto[], line: number, column: number): SymbolDto[] {
+  const path: SymbolDto[] = [];
+  let level = symbols;
+  for (;;) {
+    const hit = level.find((s) => inRange(s, line, column));
+    if (!hit) return path;
+    path.push(hit);
+    level = hit.children;
+  }
+}
+
+function inRange(s: SymbolDto, line: number, column: number): boolean {
+  const r = s.range;
+  if (line < r.startLine || line > r.endLine) return false;
+  if (line === r.startLine && column < r.startColumn) return false;
+  if (line === r.endLine && column > r.endColumn) return false;
+  return true;
+}
+
+const autoSaveTimers = new Map<string, ReturnType<typeof setTimeout>>();
+function scheduleAutoSave(path: string): void {
+  clearTimeout(autoSaveTimers.get(path));
+  autoSaveTimers.set(
+    path,
+    setTimeout(() => {
+      autoSaveTimers.delete(path);
+      void useEditors.getState().save(path);
+    }, 1000),
+  );
+}

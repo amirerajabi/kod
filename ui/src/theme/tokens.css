@@ -1,0 +1,269 @@
+/*
+ * Kod design tokens (the Rowlit token set): the only place colours are written down. Theme switches with
+ * [data-theme] on <html>. Components use these variables only.
+ */
+
+/* ------------------------------------------------------------------ light */
+:root,
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg-app: #f5f6f8;
+  --bg-panel: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-hover: #eceef2;
+  --bg-selected: #dde8fb;
+  --bg-selected-inactive: #e7eaef;
+  --bg-sunken: #eef0f3;
+  --bg-active: #e2e5ea;
+  --bg-input: #ffffff;
+  --bg-overlay: rgb(17 20 26 / 32%);
+  --bg-overlay-soft: rgb(17 20 26 / 12%);
+  --border: #ccd1d9;
+  --border-subtle: #e8ebef;
+  --border-strong: #8a919c;
+  --fg: #1c1f24;
+  --fg-muted: #5f6673;
+  --fg-disabled: #a0a6b0;
+  --fg-muted-on-selected: var(--fg-muted);
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+  --accent-fg: #ffffff;
+  --accent-soft: #ecf2fe;
+  --focus-ring: #2563eb;
+  --success: #15803d;
+  --success-fg: #ffffff;
+  --success-soft: #ebf7ef;
+  --warning: #b45309;
+  --warning-soft: #fdf3e6;
+  --danger: #b91c1c;
+  --danger-fg: #ffffff;
+  --danger-soft: #fcebeb;
+  --danger-text: var(--danger);
+  --info: #0e7490;
+  --info-soft: #e5f4f7;
+  --mark-bg: rgb(250 204 21 / 35%);
+  --shadow-1: 0 1px 2px rgb(16 24 40 / 6%);
+  --shadow-popup: 0 8px 28px rgb(16 24 40 / 14%), 0 0 0 1px rgb(16 24 40 / 6%);
+  --shadow-dialog: 0 24px 64px rgb(16 24 40 / 22%), 0 0 0 1px rgb(16 24 40 / 6%);
+  --scrollbar: rgb(0 0 0 / 18%);
+  --scrollbar-hover: rgb(0 0 0 / 32%);
+
+  /* glass top bar */
+  --glass-bg: rgb(255 255 255 / 62%);
+  --glass-border: rgb(16 24 40 / 10%);
+  --glass-shadow: 0 1px 2px rgb(16 24 40 / 5%), 0 6px 16px -10px rgb(16 24 40 / 22%);
+  --glass-hover: rgb(16 24 40 / 6%);
+  --glass-active: rgb(16 24 40 / 10%);
+  --glass-input: rgb(255 255 255 / 72%);
+  --tab-active-shadow: 0 1px 3px rgb(16 24 40 / 9%);
+
+  /* file / symbol icon tints */
+  --ic-cs: #7c3aed;
+  --ic-proj: #2563eb;
+  --ic-sln: #4338ca;
+  --ic-json: #b45309;
+  --ic-xml: #0e7490;
+  --ic-md: #374151;
+  --ic-folder: #a16207;
+  --ic-web: #c2410c;
+  --ic-test: #15803d;
+
+  /* terminal / ANSI */
+  --ansi-black: #1c1f24;
+  --ansi-red: #b91c1c;
+  --ansi-green: #15803d;
+  --ansi-yellow: #a16207;
+  --ansi-blue: #1d4ed8;
+  --ansi-magenta: #7e22ce;
+  --ansi-cyan: #0e7490;
+  --ansi-white: #5f6673;
+
+  /* editor (Rider light) */
+  --ed-bg: #ffffff;
+  --ed-fg: #080808;
+  --ed-line: #f5f8fe;
+  --ed-gutter-fg: #adb0b8;
+  --ed-gutter-active: #4c4f57;
+  --ed-selection: #a6d2ff;
+  --ed-find: #f2c94c;
+  --syn-keyword: #0033b3;
+  --syn-control: #0033b3;
+  --syn-string: #067d17;
+  --syn-escape: #0037a6;
+  --syn-number: #1750eb;
+  --syn-comment: #8c8c8c;
+  --syn-xmldoc: #8c8c8c;
+  --syn-class: #008080;
+  --syn-interface: #008080;
+  --syn-struct: #008080;
+  --syn-enum: #008080;
+  --syn-type-param: #20999d;
+  --syn-method: #00627a;
+  --syn-property: #871094;
+  --syn-field: #871094;
+  --syn-event: #871094;
+  --syn-local: #080808;
+  --syn-parameter: #080808;
+  --syn-namespace: #000000;
+  --syn-constant: #871094;
+  --syn-preprocessor: #9e880d;
+  --syn-excluded: #a0a6b0;
+}
+
+/* ------------------------------------------------------------------- dark */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+
+  --bg-app: #1b1d21;
+  --bg-panel: #24272d;
+  --bg-elevated: #2c3038;
+  --bg-hover: #30343c;
+  --bg-selected: #2e4466;
+  --bg-selected-inactive: #30343c;
+  --bg-sunken: #1f2125;
+  --bg-active: #383d46;
+  --bg-input: #1f2125;
+  --bg-overlay: rgb(0 0 0 / 55%);
+  --bg-overlay-soft: rgb(0 0 0 / 30%);
+  --border: #41464f;
+  --border-subtle: #30343c;
+  --border-strong: #6f7682;
+  --fg: #e6e8eb;
+  --fg-muted: #9aa1ab;
+  --fg-disabled: #646a74;
+  --fg-muted-on-selected: #b0b7c1;
+  --accent: #5b9cff;
+  --accent-hover: #7cb0ff;
+  --accent-fg: #0b1220;
+  --accent-soft: #233148;
+  --focus-ring: #8ab4ff;
+  --success: #4ade80;
+  --success-fg: #0b1220;
+  --success-soft: #1d3326;
+  --warning: #fbbf24;
+  --warning-soft: #3a3020;
+  --danger: #f87171;
+  --danger-fg: #1b1d21;
+  --danger-soft: #3d2526;
+  --danger-text: #fca5a5;
+  --info: #67e8f9;
+  --info-soft: #1b3439;
+  --mark-bg: rgb(250 204 21 / 28%);
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 30%);
+  --shadow-popup: 0 10px 32px rgb(0 0 0 / 50%), 0 0 0 1px rgb(255 255 255 / 6%);
+  --shadow-dialog: 0 24px 72px rgb(0 0 0 / 60%), 0 0 0 1px rgb(255 255 255 / 7%);
+  --scrollbar: rgb(255 255 255 / 16%);
+  --scrollbar-hover: rgb(255 255 255 / 30%);
+
+  --glass-bg: rgb(36 39 45 / 66%);
+  --glass-border: rgb(255 255 255 / 8%);
+  --glass-shadow: 0 1px 2px rgb(0 0 0 / 25%), 0 6px 16px -10px rgb(0 0 0 / 60%);
+  --glass-hover: rgb(255 255 255 / 7%);
+  --glass-active: rgb(255 255 255 / 11%);
+  --glass-input: rgb(0 0 0 / 18%);
+  --tab-active-shadow: 0 1px 3px rgb(0 0 0 / 35%);
+
+  --ic-cs: #b794f6;
+  --ic-proj: #5b9cff;
+  --ic-sln: #a5b4fc;
+  --ic-json: #fbbf24;
+  --ic-xml: #67e8f9;
+  --ic-md: #cbd5e1;
+  --ic-folder: #d9b25f;
+  --ic-web: #fb923c;
+  --ic-test: #4ade80;
+
+  --ansi-black: #6b7280;
+  --ansi-red: #f87171;
+  --ansi-green: #4ade80;
+  --ansi-yellow: #fbbf24;
+  --ansi-blue: #60a5fa;
+  --ansi-magenta: #d8b4fe;
+  --ansi-cyan: #67e8f9;
+  --ansi-white: #e6e8eb;
+
+  /* editor (Rider dark) */
+  --ed-bg: #1e1f22;
+  --ed-fg: #bdbdbd;
+  --ed-line: #26282e;
+  --ed-gutter-fg: #4b5059;
+  --ed-gutter-active: #a1a3ab;
+  --ed-selection: #214283;
+  --ed-find: #32593d;
+  --syn-keyword: #6c95eb;
+  --syn-control: #6c95eb;
+  --syn-string: #c9a26d;
+  --syn-escape: #d688d4;
+  --syn-number: #ed94c0;
+  --syn-comment: #85c46c;
+  --syn-xmldoc: #85c46c;
+  --syn-class: #c191ff;
+  --syn-interface: #c191ff;
+  --syn-struct: #e1bfff;
+  --syn-enum: #e1bfff;
+  --syn-type-param: #c191ff;
+  --syn-method: #39cc9b;
+  --syn-property: #66c3cc;
+  --syn-field: #66c3cc;
+  --syn-event: #66c3cc;
+  --syn-local: #bdbdbd;
+  --syn-parameter: #bdbdbd;
+  --syn-namespace: #bdbdbd;
+  --syn-constant: #66c3cc;
+  --syn-preprocessor: #9b9b9b;
+  --syn-excluded: #6b6f76;
+}
+
+/* ------------------------------------------------- theme-independent scale */
+:root {
+  --font-ui: 'Segoe UI Variable Text', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'SF Pro Text', Inter, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'Courier New', monospace;
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-md: 13px;
+  --text-lg: 15px;
+  --text-xl: 20px;
+  --text-2xl: 26px;
+  --line-height: 1.4;
+  --weight-regular: 400;
+  --weight-strong: 600;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --row-h: 24px;
+  --toolbar-h: 34px;
+  --tabbar-h: 34px;
+  --statusbar-h: 24px;
+  --topbar-h: 40px;
+  --input-h: 28px;
+  --input-h-sm: 24px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 10px;
+  --focus-ring-width: 2px;
+  --glass-filter: blur(18px) saturate(170%);
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --dur-fast: 90ms;
+  --dur: 160ms;
+
+  /* the Kod mark */
+  --brand-tile-top: #2a2f5e;
+  --brand-tile-bottom: #0d1030;
+  --brand-k-start: #ff5fa2;
+  --brand-k-end: #7c5cff;
+  --brand-dot: #ffc54d;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+  }
+}

@@ -1,0 +1,68 @@
+// The desktop bridge (desktop/src/preload.ts exposes window.kod) or, in a plain browser (npm run dev), a fallback
+// that reads the engine address from ?engine=PORT&token=TOKEN and asks for paths with prompt().
+
+export interface EngineInfo {
+  baseUrl: string;
+  token: string;
+}
+
+export interface Platform {
+  kind: 'electron' | 'browser';
+  os: 'win32' | 'darwin' | 'linux';
+  /** How the window draws its caption: Windows overlay buttons, macOS inset traffic lights, or a native frame. */
+  titleBar: 'overlay' | 'inset' | 'native';
+  getEngine(): Promise<EngineInfo>;
+  pickFolder(title?: string): Promise<string | null>;
+  pickFile(title?: string, filters?: { name: string; extensions: string[] }[]): Promise<string | null>;
+  setTitle(title: string): void;
+  setTitleBarTheme(t: { color: string; symbolColor: string; dark: boolean }): void;
+  reveal(path: string): void;
+  openExternal(url: string): void;
+  onEngineRestarted(cb: (info: EngineInfo) => void): () => void;
+}
+
+declare global {
+  interface Window {
+    kod?: Platform;
+  }
+}
+
+function browserPlatform(): Platform {
+  const ua = navigator.userAgent;
+  const os = /Mac/.test(ua) ? 'darwin' : /Win/.test(ua) ? 'win32' : 'linux';
+  return {
+    kind: 'browser',
+    os,
+    titleBar: 'native',
+    async getEngine() {
+      const q = new URLSearchParams(location.search);
+      const port = q.get('engine') ?? sessionStorage.getItem('kod.engine.port');
+      const token = q.get('token') ?? sessionStorage.getItem('kod.engine.token');
+      if (!port || !token) throw new Error('Start the engine and open this page with ?engine=PORT&token=TOKEN');
+      sessionStorage.setItem('kod.engine.port', port);
+      sessionStorage.setItem('kod.engine.token', token);
+      return { baseUrl: `http://127.0.0.1:${port}`, token };
+    },
+    async pickFolder(title) {
+      return window.prompt(title ?? 'Folder path') || null;
+    },
+    async pickFile(title) {
+      return window.prompt(title ?? 'File path') || null;
+    },
+    setTitle(title) {
+      document.title = title;
+    },
+    setTitleBarTheme() {},
+    reveal() {},
+    openExternal(url) {
+      window.open(url, '_blank', 'noopener');
+    },
+    onEngineRestarted() {
+      return () => {};
+    },
+  };
+}
+
+export const platform: Platform = window.kod ?? browserPlatform();
+
+export const isMac = platform.os === 'darwin';
