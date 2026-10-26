@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bug, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -12,6 +12,8 @@ import { useUsages } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
+import { DebugPanel } from './DebugPanel';
+import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
 
 export function BottomPanel() {
@@ -23,12 +25,14 @@ export function BottomPanel() {
   const solution = useProblems((s) => s.solution);
   const counts = useMemo(() => countProblems(allProblems({ live, build, solution })), [live, build, solution]);
   const procs = useProcs((s) => s.procs);
+  const debugStatus = useDebug((s) => s.status);
   const [start, setStart] = useState(height);
   if (!visible) return null;
   const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
 
   const TABS: { id: BottomTab; label: string; icon: ReactNode; badge?: ReactNode }[] = [
     { id: 'run', label: 'Run', icon: runningIn('run') ? <LoaderCircle size={14} className="spin" /> : <Play size={14} /> },
+    { id: 'debug', label: 'Debug', icon: debugStatus !== 'idle' ? <Bug size={14} style={{ color: debugStatus === 'stopped' ? 'var(--warning)' : 'var(--success)' }} /> : <Bug size={14} /> },
     { id: 'build', label: 'Build', icon: runningIn('build') ? <LoaderCircle size={14} className="spin" /> : <Hammer size={14} /> },
     {
       id: 'problems',
@@ -64,6 +68,7 @@ export function BottomPanel() {
         </div>
         <div className="bottom-body">
           {tab === 'run' && <ProcessPane group="run" />}
+          {tab === 'debug' && <DebugPanel />}
           {tab === 'build' && <ProcessPane group="build" />}
           {tab === 'terminal' && <ProcessPane group="terminal" />}
           {tab === 'problems' && <ProblemsPane />}

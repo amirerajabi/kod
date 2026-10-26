@@ -189,4 +189,5 @@ export type EngineEvent =
   | { type: 'fs.changed'; dirs: string[]; files: string[] }
   | ({ type: 'proc.started' } & ProcDto)
   | ({ type: 'proc.exit' } & ProcDto)
-  | { type: 'proc.output'; id: string; text: string };
+  | { type: 'proc.output'; id: string; text: string }
+  | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended'; [k: string]: unknown };

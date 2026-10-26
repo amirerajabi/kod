@@ -1,3 +1,4 @@
+using Kod.Engine.Debugging;
 using Kod.Engine.Intel;
 using Kod.Engine.Nuget;
 using Kod.Engine.Processes;
@@ -11,6 +12,11 @@ public sealed record CreateBody(string Path, bool IsDir, string? Text);
 public sealed record RenameBody(string From, string To);
 public sealed record InputBody(string Text);
 public sealed record IdBody(string Id);
+public sealed record BreakpointsBody(string Path, List<BreakpointDto> Breakpoints);
+public sealed record StepBody(string Command);
+public sealed record FrameBody(int FrameId);
+public sealed record VariablesBody(int Reference);
+public sealed record EvaluateBody(string Expression, int? FrameId, string? Context);
 
 public static class Endpoints
 {
@@ -75,6 +81,19 @@ public static class Endpoints
         api.MapPost("/proc/start", (StartRequest r, ProcessService p) => p.Start(r));
         api.MapPost("/proc/{id}/input", (string id, InputBody b, ProcessService p) => { p.WriteInput(id, b.Text); return Results.NoContent(); });
         api.MapPost("/proc/{id}/stop", (string id, ProcessService p) => { p.Stop(id); return Results.NoContent(); });
+
+        // ---- debugger (netcoredbg over DAP)
+        var debug = api.MapGroup("/debug");
+        debug.MapGet("/adapter", (DebugAdapter a) => a.Describe());
+        debug.MapPost("/adapter/install", (DebugAdapter a, CancellationToken ct) => a.InstallAsync(ct));
+        debug.MapGet("/state", (DebugService d) => d.State());
+        debug.MapPost("/start", (DebugStartRequest r, DebugService d, CancellationToken ct) => d.StartAsync(r, ct));
+        debug.MapPost("/stop", (DebugService d) => { d.Stop(); return Results.NoContent(); });
+        debug.MapPost("/breakpoints", (BreakpointsBody b, DebugService d, CancellationToken ct) => d.SetBreakpointsAsync(b.Path, b.Breakpoints, ct));
+        debug.MapPost("/step", async (StepBody b, DebugService d, CancellationToken ct) => { await d.StepAsync(b.Command, ct); return Results.NoContent(); });
+        debug.MapPost("/scopes", (FrameBody b, DebugService d, CancellationToken ct) => d.ScopesAsync(b.FrameId, ct));
+        debug.MapPost("/variables", (VariablesBody b, DebugService d, CancellationToken ct) => d.VariablesAsync(b.Reference, ct));
+        debug.MapPost("/evaluate", (EvaluateBody b, DebugService d, CancellationToken ct) => d.EvaluateAsync(b.Expression, b.FrameId, b.Context ?? "repl", ct));
 
         // ---- NuGet
         api.MapGet("/nuget/search", (string q, bool? prerelease, NugetService n, CancellationToken ct) => n.SearchAsync(q, prerelease == true, ct));

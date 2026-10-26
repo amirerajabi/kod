@@ -12,6 +12,8 @@ import { useProcs } from '../store/procs';
 import { onSystemThemeChange, useSettings } from '../store/settings';
 import { applyThemes } from '../theme/applyTheme';
 import { installUpdateWiring } from './updates';
+import { loadBreakpoints, onDebugEvent } from '../store/debug';
+import { registerDebugHover } from '../editor/debugEditor';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 
@@ -47,6 +49,7 @@ export async function boot(): Promise<void> {
   useUi.getState().set({ engineError: null });
   useWorkspace.setState({ meta });
   registerCSharp({ tokenTypes: meta.tokenTypes, tokenModifiers: meta.tokenModifiers });
+  registerDebugHover();
 
   let lastRoot: string | undefined;
   let lastState: string | undefined;
@@ -57,6 +60,7 @@ export async function boot(): Promise<void> {
         useWorkspace.getState().apply(ws);
         if (!samePath(ws.root, lastRoot)) {
           lastRoot = ws.root;
+          loadBreakpoints();
           if (ws.root) void restoreTabs(ws.root);
         }
         if (ws.state === 'ready' && lastState !== 'ready') refreshAllDiagnostics();
@@ -65,6 +69,12 @@ export async function boot(): Promise<void> {
       }
       case 'fs.changed':
         for (const f of e.files) onDiskChange(f);
+        break;
+      case 'debug.state':
+      case 'debug.stopped':
+      case 'debug.output':
+      case 'debug.ended':
+        onDebugEvent(e);
         break;
       case 'proc.started':
       case 'proc.output':

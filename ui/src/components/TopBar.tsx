@@ -1,4 +1,5 @@
-import { ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Square, Sun, SunMoon } from 'lucide-react';
+import { useDebug } from '../store/debug';
+import { Bug, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Square, Sun, SunMoon } from 'lucide-react';
 import { openWorkspace } from '../app/actions';
 import { runCommand, shortcutOf } from '../app/commands';
 import { appMenu } from '../app/menus';
@@ -24,6 +25,7 @@ export function TopBar() {
   const bottomVisible = useUi((s) => s.bottomVisible);
   const theme = useSettings((s) => s.settings.theme);
   useProcs((s) => s.procs); // re-render on process changes
+  const debugStatus = useDebug((s) => s.status);
   const running = runningOf('run');
   const building = runningOf('build');
   const project = ws.projects.find((p) => samePath(p.path, startup));
@@ -96,10 +98,19 @@ export function TopBar() {
           <button className="icon-btn run" title={tip(running.length ? 'Rerun' : 'Run', 'run.run')} disabled={!project?.runnable} onClick={() => runCommand('run.run')}>
             <Play size={16} />
           </button>
+          <button
+            className={`icon-btn${debugStatus !== 'idle' ? ' on' : ''}`}
+            title={debugStatus === 'stopped' ? 'Resume (F5)' : tip('Debug', 'run.debug')}
+            disabled={!project?.runnable || debugStatus === 'building' || debugStatus === 'starting' || debugStatus === 'running'}
+            onClick={() => runCommand('run.debug')}
+            style={{ color: project?.runnable ? 'var(--warning)' : undefined }}
+          >
+            <Bug size={16} />
+          </button>
           <button className="icon-btn" title="Run tests" onClick={() => runCommand('run.tests')}>
             <FlaskConical size={16} />
           </button>
-          <button className="icon-btn stop" title={tip('Stop', 'run.stop')} disabled={running.length === 0 && building.length === 0} onClick={() => (running.length ? runCommand('run.stop') : runCommand('run.stopBuild'))}>
+          <button className="icon-btn stop" title={tip('Stop', 'run.stop')} disabled={running.length === 0 && building.length === 0 && debugStatus === 'idle'} onClick={() => (running.length || debugStatus !== 'idle' ? runCommand('run.stop') : runCommand('run.stopBuild'))}>
             <Square size={14} />
           </button>
           <div className="topbar-sep" />

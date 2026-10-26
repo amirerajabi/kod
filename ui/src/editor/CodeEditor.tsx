@@ -9,6 +9,7 @@ import { useUi } from '../store/ui';
 import { useUsages } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { scheduleDiagnostics } from './csharp';
+import { attachDebugDecorations, toggleBreakpointAtCursor } from './debugEditor';
 import { entryOfModel, getEntry } from './models';
 import { monaco } from './monaco';
 
@@ -88,6 +89,7 @@ export function CodeEditor() {
       padding: { top: 6 },
       mouseWheelZoom: true,
       linkedEditing: true,
+      glyphMargin: true,
       'bracketPairColorization.independentColorPoolPerBracketType': true,
     } as monaco.editor.IStandaloneEditorConstructionOptions);
     editorInstance = ed;
@@ -106,6 +108,10 @@ export function CodeEditor() {
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.KeyW, () => ed.trigger('kod', 'editor.action.smartSelect.shrink', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.UpArrow, () => ed.trigger('kod', 'editor.action.moveLinesUpAction', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.DownArrow, () => ed.trigger('kod', 'editor.action.moveLinesDownAction', {}));
+
+    ed.addCommand(monaco.KeyCode.F9, () => toggleBreakpointAtCursor(ed));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F8, () => toggleBreakpointAtCursor(ed));
+    const detachDebug = attachDebugDecorations(ed);
 
     ed.onDidChangeCursorSelection((e) => {
       const model = ed.getModel();
@@ -130,6 +136,7 @@ export function CodeEditor() {
     };
 
     return () => {
+      detachDebug();
       editorInstance = null;
       ed.dispose();
     };
