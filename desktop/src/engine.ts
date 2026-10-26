@@ -29,7 +29,20 @@ export function resolveLaunch(opts: { isPackaged: boolean; resourcesPath: string
   if (process.env.KOD_ENGINE_PATH) return { command: process.env.KOD_ENGINE_PATH, args: extra, cwd: path.dirname(process.env.KOD_ENGINE_PATH), timeoutMs: 30_000 };
   if (opts.isPackaged) {
     const dir = path.join(opts.resourcesPath, 'engine');
-    return { command: path.join(dir, exe), args: extra, cwd: dir, timeoutMs: 30_000 };
+    const command = path.join(dir, exe);
+    // macOS / Linux: an archive or a copy can drop the execute bit of the engine apphost
+    if (process.platform !== 'win32') {
+      try {
+        fs.accessSync(command, fs.constants.X_OK);
+      } catch {
+        try {
+          fs.chmodSync(command, fs.statSync(command).mode | 0o755);
+        } catch {
+          /* spawn reports a missing file */
+        }
+      }
+    }
+    return { command, args: extra, cwd: dir, timeoutMs: 30_000 };
   }
   const project = path.join(opts.repoRoot, 'engine', 'src', 'Kod.Engine');
   const built = path.join(project, 'bin', 'Debug', 'net10.0', exe);

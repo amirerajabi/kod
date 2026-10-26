@@ -80,3 +80,4 @@ linux:
   target: [AppImage]
   icon: build/icon.png
   category: Development
+  artifactName: Kod-${version}-linux-${arch}.${ext}
