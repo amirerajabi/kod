@@ -86,9 +86,21 @@ export function languageOf(path: string): string {
   return BY_EXT[extname(path)] ?? 'plaintext';
 }
 
+/**
+ * A CSS token as the 6-digit hex (no '#') Monaco requires. The production CSS minifier shortens colours
+ * (#ffffff → #fff), and Monaco throws on anything but #rrggbb in token rules.
+ */
 function v(styles: CSSStyleDeclaration, name: string): string {
-  const raw = styles.getPropertyValue(name).trim();
-  return raw.startsWith('#') ? raw.slice(1) : raw;
+  const raw = styles.getPropertyValue(name).trim().toLowerCase();
+  let m = /^#([0-9a-f]{3,8})$/.exec(raw);
+  if (m) {
+    const h = m[1];
+    if (h.length === 3 || h.length === 4) return [...h.slice(0, 3)].map((c) => c + c).join('');
+    return h.slice(0, 6);
+  }
+  m = /^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/.exec(raw);
+  if (m) return m.slice(1, 4).map((n) => Number(n).toString(16).padStart(2, '0')).join('');
+  return '808080';
 }
 
 /** (Re)defines the "kod" theme from the current CSS tokens. Called at start and on every theme switch. */

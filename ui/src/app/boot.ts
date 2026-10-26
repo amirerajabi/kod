@@ -17,7 +17,12 @@ import { useWorkspace } from '../store/workspace';
 function applyTheme(): void {
   const dark = effectiveTheme() === 'dark';
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  applyMonacoTheme(dark);
+  try {
+    applyMonacoTheme(dark);
+  } catch (e) {
+    // a bad colour must never stop the app from starting
+    console.error('Editor theme failed', e);
+  }
   const s = getComputedStyle(document.documentElement);
   platform.setTitleBarTheme({ color: s.getPropertyValue('--bg-app').trim(), symbolColor: s.getPropertyValue('--fg').trim(), dark });
 }
