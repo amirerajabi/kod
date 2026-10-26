@@ -106,9 +106,9 @@ pwsh scripts/build.ps1 -Dir     # unpacked app folder
   build on their own runners; the update metadata (`latest*.yml`) is checked against the assets and everything is
   published as the GitHub Release the in-app updater reads.
 
-`ash
+```bash
 git tag v0.2.1 && git push origin v0.2.1
-`  
+```
 
 ## Keyboard (Rider keymap)
 
