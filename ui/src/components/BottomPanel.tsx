@@ -1,4 +1,4 @@
-import { Bug, FlaskConical, GitBranch, Package, AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bug, FlaskConical, GitBranch, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -14,10 +14,13 @@ import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
 import { GitLogPanel } from './GitLogPanel';
+import { HierarchyPanel } from './HierarchyPanel';
+import { InspectionsPanel } from './InspectionsPanel';
 import { NugetWindow } from './NugetWindow';
 import { TerminalPane } from './TerminalPane';
 import { TestsPanel } from './TestsPanel';
 import { useTests } from '../store/tests';
+import { useInspections } from '../store/inspections';
 import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
 
@@ -32,6 +35,7 @@ export function BottomPanel() {
   const procs = useProcs((s) => s.procs);
   const debugStatus = useDebug((s) => s.status);
   const testsRunning = useTests((s) => s.running.size > 0);
+  const inspecting = useInspections((s) => s.running);
   const [start, setStart] = useState(height);
   if (!visible) return null;
   const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
@@ -49,7 +53,9 @@ export function BottomPanel() {
       icon: <CircleX size={14} />,
       badge: counts.errors ? <span className="badge error">{counts.errors}</span> : counts.warnings ? <span className="badge warning">{counts.warnings}</span> : null,
     },
+    { id: 'inspections', label: 'Inspections', icon: inspecting ? <LoaderCircle size={14} className="spin" /> : <ListChecks size={14} /> },
     { id: 'usages', label: 'Find Usages', icon: <ScanSearch size={14} /> },
+    { id: 'hierarchy', label: 'Hierarchy', icon: <Network size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <SquareTerminal size={14} /> },
   ];
 
@@ -84,7 +90,9 @@ export function BottomPanel() {
           {tab === 'git' && <GitLogPanel />}
           {tab === 'nuget' && <NugetWindow />}
           {tab === 'problems' && <ProblemsPane />}
+          {tab === 'inspections' && <InspectionsPanel />}
           {tab === 'usages' && <UsagesPane />}
+          {tab === 'hierarchy' && <HierarchyPanel />}
         </div>
       </section>
     </>

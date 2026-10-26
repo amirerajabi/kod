@@ -17,6 +17,7 @@ export interface FileEditsDto {
   edits: TextEditDto[];
   created?: boolean;
   newText?: string;
+  deleted?: boolean;
 }
 
 export type LoadState = 'none' | 'loading' | 'ready' | 'failed';
@@ -199,3 +200,120 @@ export type EngineEvent =
   | { type: 'ai.done'; sessionId: string; stopReason: string; error?: string; usage?: { input: number; output: number; cached: number } };
 
 export type AiToolStatus = 'approval' | 'running' | 'done' | 'error' | 'denied';
+
+// ---- inlay hints, Code Vision, postfix templates (engine Intel/Dtos.cs)
+
+export interface InlayHintDto {
+  line: number;
+  column: number;
+  label: string;
+  kind: 'type' | 'parameter';
+  paddingLeft: boolean;
+  paddingRight: boolean;
+}
+
+export interface CodeVisionEntryDto {
+  line: number;
+  column: number;
+  kind: 'type' | 'member';
+  implementable: boolean;
+}
+
+export interface CodeVisionDto {
+  usages: number;
+  implementations: number;
+  implementationsLabel?: string;
+}
+
+export interface PostfixContextDto {
+  range: RangeDto;
+  expression: string;
+  type?: string;
+  isBool: boolean;
+  isEnumerable: boolean;
+  countProperty?: string;
+  canBeNull: boolean;
+  isAwaitable: boolean;
+  isDisposable: boolean;
+  isException: boolean;
+  isType: boolean;
+  isVoid: boolean;
+  isStatement: boolean;
+  suggestedName: string;
+}
+
+// ---- hierarchies and navigation
+
+export interface HierarchyItemDto {
+  id: string;
+  name: string;
+  detail?: string;
+  kind: string;
+  path?: string;
+  range?: RangeDto;
+  expandable: boolean;
+  callSites?: RangeDto[];
+  callPath?: string;
+}
+
+export interface RelatedFileDto {
+  path: string;
+  reason: string;
+}
+
+// ---- refactorings
+
+export interface RefactoringsDto {
+  symbolName?: string;
+  symbolKind?: string;
+  canRename: boolean;
+  canChangeSignature: boolean;
+  canSafeDelete: boolean;
+  canExtractInterface: boolean;
+  roslyn: CodeActionDto[];
+}
+
+export interface SignatureInfoDto {
+  name: string;
+  kind: 'method' | 'constructor';
+  returnType?: string;
+  parameters: { name: string; type: string; defaultValue?: string; modifier?: string; isParams: boolean }[];
+  isExtension: boolean;
+  overloads: number;
+}
+
+export interface SignatureParameterEditDto {
+  originalIndex: number;
+  name: string;
+  type: string;
+  defaultValue?: string | null;
+  callSiteValue?: string | null;
+}
+
+export interface SafeDeleteCheckDto {
+  name: string;
+  kind: string;
+  usages: LocationDto[];
+}
+
+export interface ExtractInterfaceInfoDto {
+  typeName: string;
+  suggestedName: string;
+  folder: string;
+  members: { id: string; display: string; kind: string }[];
+}
+
+// ---- inspections
+
+export interface InspectionDto {
+  severity: 'error' | 'warning' | 'info' | 'hint';
+  code: string;
+  message: string;
+  range: RangeDto;
+  path: string;
+  title: string;
+  category: string;
+  helpLink?: string;
+  unnecessary: boolean;
+  fixable: boolean;
+}

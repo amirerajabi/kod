@@ -86,6 +86,52 @@ public static class Endpoints
         intel.MapGet("/workspaceSymbols", (string q, IntelService s, CancellationToken ct) => s.WorkspaceSymbolsAsync(q, ct));
         intel.MapPost("/codeActions", (RangeRequest r, CodeActionService s, CancellationToken ct) => s.GetAsync(r, ct));
         intel.MapPost("/codeActions/apply", (IdBody b, CodeActionService s, CancellationToken ct) => s.ApplyAsync(b.Id, ct));
+        intel.MapPost("/inlayHints", (RangeRequest r, IntelService s, CancellationToken ct) => s.InlayHintsAsync(r, ct));
+        intel.MapPost("/codeVision", (TextRequest r, IntelService s, CancellationToken ct) => s.CodeVisionEntriesAsync(r, ct));
+        intel.MapPost("/codeVision/resolve", async (DocRequest r, IntelService s, CancellationToken ct) => await s.CodeVisionAsync(r, ct) is { } c ? Results.Ok(c) : Results.NoContent());
+        intel.MapPost("/postfix", async (DocRequest r, IntelService s, CancellationToken ct) => await s.PostfixAsync(r, ct) is { } p ? Results.Ok(p) : Results.NoContent());
+        intel.MapPost("/typeDefinition", (DocRequest r, IntelService s, CancellationToken ct) => s.TypeDefinitionAsync(r, ct));
+
+        // ---- hierarchies and structural navigation
+        intel.MapPost("/hierarchy/root", async (DocRequest r, string kind, IntelService s, CancellationToken ct) => await s.HierarchyRootAsync(r, kind, ct) is { } h ? Results.Ok(h) : Results.NoContent());
+        intel.MapPost("/hierarchy/children", (HierarchyRequest r, IntelService s, CancellationToken ct) => s.HierarchyChildrenAsync(r, ct));
+        intel.MapPost("/symbolDefinition", (SymbolIdRequest r, IntelService s, CancellationToken ct) => s.SymbolDefinitionAsync(r.Id, ct));
+        intel.MapPost("/baseSymbols", (DocRequest r, IntelService s, CancellationToken ct) => s.BaseSymbolsAsync(r, ct));
+        intel.MapPost("/relatedFiles", (TextRequest r, IntelService s, CancellationToken ct) => s.RelatedFilesAsync(r, ct));
+
+        // ---- refactorings (Refactor This)
+        intel.MapPost("/refactor/available", (RangeRequest r, RefactoringService s, CancellationToken ct) => s.AvailableAsync(r, ct));
+        intel.MapPost("/refactor/signature", (DocRequest r, RefactoringService s, CancellationToken ct) => s.SignatureAsync(r, ct));
+        intel.MapPost("/refactor/changeSignature", (ChangeSignatureRequest r, RefactoringService s, CancellationToken ct) => s.ChangeSignatureAsync(r, ct));
+        intel.MapPost("/refactor/safeDelete/check", (DocRequest r, RefactoringService s, CancellationToken ct) => s.SafeDeleteCheckAsync(r, ct));
+        intel.MapPost("/refactor/safeDelete", (SafeDeleteRequest r, RefactoringService s, CancellationToken ct) => s.SafeDeleteAsync(r, ct));
+        intel.MapPost("/refactor/extractInterface/info", (DocRequest r, RefactoringService s, CancellationToken ct) => s.ExtractInterfaceInfoAsync(r, ct));
+        intel.MapPost("/refactor/extractInterface", (ExtractInterfaceRequest r, RefactoringService s, CancellationToken ct) => s.ExtractInterfaceAsync(r, ct));
+
+        // ---- inspections
+        intel.MapPost("/analyzerDiagnostics", async (TextRequest r, WorkspaceService ws, InspectionService s, CancellationToken ct) =>
+        {
+            if (ws.GetDocument(r.Path, r.Text) is not { } doc) return [];
+            var text = await doc.GetTextAsync(ct);
+            return (await s.DocumentAsync(doc, null, ct)).Where(InspectionService.IsVisible).Select(d => IntelService.ToDto(d, text, doc.FilePath ?? r.Path)).ToList();
+        });
+        intel.MapGet("/inspect", async (InspectionService s, CodeActionService cas, CancellationToken ct) =>
+        {
+            var list = new List<InspectionDto>();
+            var seen = new HashSet<string>();
+            foreach (var (d, _) in await s.SolutionAsync(ct))
+            {
+                if (!InspectionService.IsVisible(d)) continue;
+                var tree = d.Location.SourceTree!;
+                var dto = IntelService.ToDto(d, await tree.GetTextAsync(ct), tree.FilePath);
+                if (!seen.Add($"{dto.Path}|{dto.Code}|{dto.Range}")) continue;
+                list.Add(new InspectionDto(dto.Severity, dto.Code, dto.Message, dto.Range, dto.Path, d.Descriptor.Title.ToString(), d.Descriptor.Category, d.Descriptor.HelpLinkUri is { Length: > 0 } h ? h : null, dto.Unnecessary, cas.CanFixAll(d.Id)));
+                if (list.Count >= 20000) break;
+            }
+            return list;
+        });
+        intel.MapPost("/fixAll", (FixAllRequest r, CodeActionService s, CancellationToken ct) => s.FixAllAsync(r, ct));
+        intel.MapPost("/cleanup", (CleanupRequest r, CodeActionService s, CancellationToken ct) => s.CleanupAsync(r, ct));
 
         // ---- processes (build, run, test, terminal)
         api.MapGet("/proc", (ProcessService p) => p.List());

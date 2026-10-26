@@ -278,6 +278,18 @@ function applyToText(text: string, edits: TextEditDto[]): string {
 export async function applyFileEdits(files: FileEditsDto[]): Promise<number> {
   let n = 0;
   for (const f of files) {
+    if (f.deleted) {
+      try {
+        await api.post('/fs/delete', { path: f.path });
+        const e = getEntry(f.path);
+        if (e) markSaved(e);
+        useEditors.getState().deleted(f.path);
+        n++;
+      } catch (e) {
+        toast('error', `Could not delete ${basename(f.path)}`, errorText(e));
+      }
+      continue;
+    }
     if (f.created) {
       try {
         await api.post('/fs/create', { path: f.path, isDir: false, text: f.newText ?? '' });
