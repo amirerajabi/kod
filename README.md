@@ -27,12 +27,30 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   sticky scroll, minimap, bracket colours, Rider colour scheme driven by **Roslyn semantic classification**.
 - **IntelliSense** from Roslyn's `CompletionService`: members, types, keywords, overrides, with documentation;
   C# live templates (`prop`, `ctor`, `cw`, `foreach`, `fact`, …).
+- **Postfix templates** (`expr.if`, `.foreach`, `.var`, `.null`, `.notnull`, `.await`, `.return`, `.using`, `.switch`,
+  `.par`, `.cast`, `.new`, …) offered by what the expression is, and **Surround With** (Ctrl+Alt+T: if, while,
+  for/foreach, try/catch/finally, using, lock, #region, braces, parentheses…).
+- **Inlay hints**: parameter names before literal arguments, inferred types of `var`, `foreach` and lambda parameters.
+- **Code Vision**: usages and implementations / inheritors / overrides above types and members, counted as they
+  scroll into view; click to find usages or go to implementations.
 - **Hover** quick info, **parameter info** (overloads, active parameter, XML docs), **live diagnostics**
   (errors, warnings, unnecessary usings faded).
+- **Code inspections** while typing: Roslyn's IDE analyzers (unused members and parameters, redundant code,
+  simplifications, style) and the projects' own analyzers (the SDK's CA rules, StyleCop, …), following .editorconfig.
 - **Alt+Enter**: Roslyn's own code fixes (add `using`, generate method/type, implement interface, …) and
-  refactorings (convert, introduce, extract, …).
-- **Navigation**: go to declaration (F12 / Ctrl+B / Ctrl+click), go to implementation, find usages (Alt+F7 tool
-  window, Shift+F12 peek), file structure, metadata view for framework types (generated declarations with docs).
+  refactorings (convert, introduce, extract, …); "Fix all in file / solution" and "Disable with #pragma".
+- **Navigation**: go to declaration (F12 / Ctrl+B / Ctrl+click), type declaration, implementation, base symbols
+  (Alt+Home), derived symbols (Alt+End), related files (Ctrl+Alt+Home), find usages (Alt+F7 tool window,
+  Shift+F12 peek), Navigate To (Ctrl+Shift+G), next / previous member (Alt+Down / Alt+Up), Back / Forward across
+  files (Ctrl+Alt+Left / Right), Recent Files (Ctrl+E), Recent Locations (Ctrl+Shift+E), file structure, metadata
+  view for framework types (generated declarations with docs).
+- **Call Hierarchy** (Ctrl+Alt+H: callers / callees) and **Type Hierarchy** (Ctrl+H: subtypes / supertypes) in the
+  Hierarchy tool window, expanded one level at a time.
+- **Refactor This** (Ctrl+Shift+R): Rename, **Change Signature** (Ctrl+F6: add, remove, reorder and rename parameters
+  across calls, overrides and implementations), **Safe Delete** (Alt+Delete: checks usages first; a parameter is
+  removed from every call), **Extract Interface**, plus every Roslyn refactoring at the caret.
+- **Inspect Code** on the whole solution (Inspections tool window, grouped by inspection, Fix all) and **Code
+  Cleanup** (Ctrl+Alt+Shift+L: redundancies removed, syntax style applied, usings sorted, reformatted).
 - **Rename** across the solution (F2 / Shift+F6), **reformat** (Ctrl+Alt+L), comment, move/duplicate lines.
 
 **Debugger**
@@ -148,7 +166,13 @@ git tag v0.2.1 && git push origin v0.2.1
 | Context actions | Alt+Enter |
 | Completion / parameter info / quick doc | Ctrl+Space / Ctrl+Shift+Space / Ctrl+Q |
 | Declaration / implementation / usages | F12, Ctrl+B / Ctrl+Alt+B / Alt+F7, Shift+F12 |
-| Rename / reformat | F2, Shift+F6 / Ctrl+Alt+L |
+| Rename / reformat / code cleanup | F2, Shift+F6 / Ctrl+Alt+L / Ctrl+Alt+Shift+L |
+| Refactor This / change signature / safe delete | Ctrl+Shift+R / Ctrl+F6 / Alt+Delete |
+| Surround with / replace in file | Ctrl+Alt+T / Ctrl+R |
+| Navigate To / type declaration / base / derived / related | Ctrl+Shift+G / Ctrl+Shift+F11 / Alt+Home / Alt+End / Ctrl+Alt+Home |
+| Call hierarchy / type hierarchy | Ctrl+Alt+H / Ctrl+H |
+| Recent files / recent locations / back / forward | Ctrl+E / Ctrl+Shift+E / Ctrl+Alt+Left / Ctrl+Alt+Right |
+| Next / previous member | Alt+Down / Alt+Up |
 | Build / run / debug / stop | Ctrl+Shift+B / Shift+F10, Ctrl+F5 / F5 / Shift+F5 |
 | Breakpoint / step over / into / out | F9, Ctrl+F8 / F10, F8 / F11, F7 / Shift+F11 |
 | Explorer / tool windows / terminal | Alt+1 / Ctrl+J / Alt+F12 |

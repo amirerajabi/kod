@@ -10,6 +10,7 @@ import { ConfirmDialog, PromptDialog, Toasts } from './components/common/Overlay
 import { Dock } from './components/Dock';
 import { EditorArea } from './components/EditorArea';
 import { NewProjectDialog } from './components/NewProjectDialog';
+import { RefactorDialogs } from './components/RefactorDialogs';
 import { RemotesDialog } from './components/RemotesDialog';
 import { SettingsDialog } from './components/settings/SettingsDialog';
 import { ShortcutSheet } from './components/ShortcutSheet';
@@ -55,6 +56,7 @@ export default function App() {
       <ShortcutSheet />
       <NewProjectDialog />
       <RemotesDialog />
+      <RefactorDialogs />
       <PromptDialog />
       <ConfirmDialog />
       <Toasts />

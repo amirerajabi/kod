@@ -2,7 +2,9 @@
 import { api, errorText, setEngineInfo } from '../api/client';
 import type { MetaDto } from '../api/types';
 import { connectEvents, onEngineEvent } from '../api/ws';
-import { refreshAllDiagnostics, registerCSharp } from '../editor/csharp';
+import { refreshAllDiagnostics, refreshInlayHints, registerCSharp } from '../editor/csharp';
+import { refreshCodeVision, registerCodeVision } from '../editor/codeVision';
+import { registerPostfix } from '../editor/postfix';
 import { allEntries, isDirty, replaceText } from '../editor/models';
 import { basename, samePath } from '../lib/paths';
 import { platform } from '../platform';
@@ -49,6 +51,8 @@ export async function boot(): Promise<void> {
   useSettings.subscribe((s, prev) => {
     const a = s.settings, b = prev.settings;
     if (a.uiFontFamily !== b.uiFontFamily || a.uiFontSize !== b.uiFontSize) applyFonts();
+    if (a.inlayHints !== b.inlayHints) refreshInlayHints();
+    if (a.inspections !== b.inspections) refreshAllDiagnostics();
     if (a.fontFamily !== b.fontFamily || a.fontSize !== b.fontSize || a.terminalFontFamily !== b.terminalFontFamily || a.terminalFontSize !== b.terminalFontSize) refont();
     if (a.theme !== b.theme || a.appThemeLight !== b.appThemeLight || a.appThemeDark !== b.appThemeDark || a.codeTheme !== b.codeTheme) {
       applyThemes();
@@ -63,6 +67,8 @@ export async function boot(): Promise<void> {
   registerCSharp({ tokenTypes: meta.tokenTypes, tokenModifiers: meta.tokenModifiers });
   registerDebugHover();
   registerTestLenses();
+  registerCodeVision();
+  registerPostfix();
   void refreshKeys();
   window.addEventListener('focus', () => refreshGit(100));
 
@@ -88,6 +94,7 @@ export async function boot(): Promise<void> {
       }
       case 'fs.changed':
         for (const f of e.files) onDiskChange(f);
+        if (e.files.some((f) => /\.cs$/i.test(f))) refreshCodeVision();
         refreshGit(600);
         if (e.files.some((f) => /\.(cs|csproj)$/i.test(f))) discoverTests(2500);
         break;

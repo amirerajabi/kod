@@ -18,17 +18,17 @@ namespace Kod.Engine.Intel;
 
 /// <summary>C# language features on top of the workspace snapshot: completion, hover, signature help, diagnostics,
 /// navigation, find usages, rename, formatting, semantic colouring and outline.</summary>
-public sealed class IntelService(WorkspaceService workspace, MetadataViews metadata)
+public sealed partial class IntelService(WorkspaceService workspace, MetadataViews metadata)
 {
     private readonly ConcurrentDictionary<string, (Document Doc, CompletionList List)> completionCache = new();
     private readonly ConcurrentQueue<string> completionOrder = new();
 
     // ------------------------------------------------------------------ helpers
 
-    private Document Doc(string path, string? text) =>
+    internal Document Doc(string path, string? text) =>
         workspace.GetDocument(path, text) ?? throw new InvalidOperationException($"{Path.GetFileName(path)} is not a C# document");
 
-    private static int Offset(SourceText text, int line, int column)
+    internal static int Offset(SourceText text, int line, int column)
     {
         var l = Math.Clamp(line - 1, 0, text.Lines.Count - 1);
         var tl = text.Lines[l];
@@ -45,7 +45,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
     public static RangeDto ToRange(FileLinePositionSpan span) =>
         new(span.StartLinePosition.Line + 1, span.StartLinePosition.Character + 1, span.EndLinePosition.Line + 1, span.EndLinePosition.Character + 1);
 
-    private static TextSpan ToSpan(SourceText text, RangeDto r)
+    internal static TextSpan ToSpan(SourceText text, RangeDto r)
     {
         var start = Offset(text, r.StartLine, r.StartColumn);
         var end = Offset(text, r.EndLine, r.EndColumn);
@@ -283,7 +283,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
         return list;
     }
 
-    private static DiagnosticDto ToDto(Diagnostic d, SourceText text, string path)
+    internal static DiagnosticDto ToDto(Diagnostic d, SourceText text, string path)
     {
         var severity = d.Severity switch
         {
@@ -298,7 +298,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
 
     // ------------------------------------------------------------------ navigation
 
-    private async Task<(Document Doc, ISymbol? Symbol, SourceText Text)> SymbolAtAsync(string path, string? textOverride, int line, int column, CancellationToken ct)
+    internal async Task<(Document Doc, ISymbol? Symbol, SourceText Text)> SymbolAtAsync(string path, string? textOverride, int line, int column, CancellationToken ct)
     {
         var doc = Doc(path, textOverride);
         var text = await doc.GetTextAsync(ct);
@@ -363,7 +363,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
         return Dedupe(list);
     }
 
-    private static async Task<List<LocationDto>> SourceLocationsAsync(ISymbol symbol, CancellationToken ct)
+    internal static async Task<List<LocationDto>> SourceLocationsAsync(ISymbol symbol, CancellationToken ct)
     {
         var list = new List<LocationDto>();
         foreach (var loc in symbol.Locations.Where(l => l.IsInSource))
@@ -371,7 +371,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
         return list;
     }
 
-    private static async Task<LocationDto> LocationAsync(Location loc, bool isDefinition, CancellationToken ct)
+    internal static async Task<LocationDto> LocationAsync(Location loc, bool isDefinition, CancellationToken ct)
     {
         var tree = loc.SourceTree!;
         var text = await tree.GetTextAsync(ct);
@@ -380,7 +380,7 @@ public sealed class IntelService(WorkspaceService workspace, MetadataViews metad
         return new LocationDto(tree.FilePath, range, preview.Length > 200 ? preview[..200] : preview, isDefinition);
     }
 
-    private static List<LocationDto> Dedupe(List<LocationDto> list) =>
+    internal static List<LocationDto> Dedupe(List<LocationDto> list) =>
         list.Where(l => !string.IsNullOrEmpty(l.Path))
             .GroupBy(l => (l.Path.ToLowerInvariant(), l.Range))
             .Select(g => g.OrderByDescending(x => x.IsDefinition).First())

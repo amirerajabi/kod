@@ -8,6 +8,7 @@ import type {
   DiagnosticDto,
   FileEditsDto,
   HoverDto,
+  InlayHintDto,
   LocationDto,
   MetadataViewDto,
   RangeDto,
@@ -17,6 +18,7 @@ import type {
 } from '../api/types';
 import { applyFileEdits, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
+import { useSettings } from '../store/settings';
 import { toast } from '../store/ui';
 import { allEntries, ensureModel, ensureVirtualModel, entryOfModel, getEntry, pathOfModel, type ModelEntry } from './models';
 import { monaco } from './monaco';
@@ -66,6 +68,9 @@ const metadataViews = new Map<string, MetadataViewDto>();
 /** Fires to make Monaco re-request semantic tokens (e.g. when the workspace finished loading). */
 const tokensChanged = new monaco.Emitter<void>();
 export const refreshSemanticTokens = () => tokensChanged.fire();
+
+const hintsChanged = new monaco.Emitter<void>();
+export const refreshInlayHints = () => hintsChanged.fire();
 
 async function toLocations(list: LocationDto[]): Promise<monaco.languages.Location[]> {
   const out: monaco.languages.Location[] = [];
@@ -187,6 +192,36 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
     },
   });
 
+  monaco.languages.registerTypeDefinitionProvider(L, {
+    async provideTypeDefinition(model, position, token) {
+      if (!pathOfModel(model)) return null;
+      const res = await call<DefinitionDto>('/intel/typeDefinition', docReq(model, position), token);
+      if (!res) return null;
+      if (res.locations.length > 0) return toLocations(res.locations);
+      return res.metadata ? [metadataLocation(res.metadata)] : null;
+    },
+  });
+
+  monaco.languages.registerInlayHintsProvider(L, {
+    onDidChangeInlayHints: hintsChanged.event,
+    async provideInlayHints(model, range, token) {
+      const path = pathOfModel(model);
+      if (!path || model.uri.scheme !== 'file' || !useSettings.getState().settings.inlayHints) return { hints: [], dispose() {} };
+      const r = { startLine: range.startLineNumber, startColumn: range.startColumn, endLine: range.endLineNumber, endColumn: range.endColumn };
+      const res = await call<InlayHintDto[]>('/intel/inlayHints', { path, text: model.getValue(), range: r }, token);
+      return {
+        hints: (res ?? []).map((h) => ({
+          position: { lineNumber: h.line, column: h.column },
+          label: h.label,
+          kind: h.kind === 'type' ? monaco.languages.InlayHintKind.Type : monaco.languages.InlayHintKind.Parameter,
+          paddingLeft: h.paddingLeft,
+          paddingRight: h.paddingRight,
+        })),
+        dispose() {},
+      };
+    },
+  });
+
   monaco.languages.registerImplementationProvider(L, {
     async provideImplementation(model, position, token) {
       if (!pathOfModel(model)) return null;
@@ -296,14 +331,7 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
     { providedCodeActionKinds: ['quickfix', 'refactor'] },
   );
 
-  monaco.editor.registerCommand('kod.applyCodeAction', async (_accessor, id: string) => {
-    try {
-      const files = await api.post<FileEditsDto[]>('/intel/codeActions/apply', { id });
-      await applyFileEdits(files);
-    } catch (e) {
-      toast('error', 'The action could not be applied', errorText(e));
-    }
-  });
+  monaco.editor.registerCommand('kod.applyCodeAction', (_accessor, id: string) => applyCodeAction(id));
 
   // Ctrl+click / F12 into another file or a metadata view: open it as a tab
   monaco.editor.registerEditorOpener({
@@ -327,6 +355,16 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
   });
 }
 
+/** Applies a quick fix / refactoring the engine offered (Alt+Enter, Refactor This). */
+export async function applyCodeAction(id: string): Promise<void> {
+  try {
+    const files = await api.post<FileEditsDto[]>('/intel/codeActions/apply', { id });
+    await applyFileEdits(files);
+  } catch (e) {
+    toast('error', 'The action could not be applied', errorText(e));
+  }
+}
+
 // ---------------------------------------------------------------- diagnostics
 
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -342,26 +380,42 @@ export function scheduleDiagnostics(e: ModelEntry, delay = 450): void {
       timers.delete(e.path);
       if (e.model.isDisposed()) return;
       const version = e.model.getVersionId();
-      const res = await call<DiagnosticDto[]>('/intel/diagnostics', { path: e.path, text: e.model.getValue() });
+      const body = { path: e.path, text: e.model.getValue() };
+      const res = await call<DiagnosticDto[]>('/intel/diagnostics', body);
       if (!res || e.model.isDisposed() || e.model.getVersionId() !== version) return;
-      monaco.editor.setModelMarkers(
-        e.model,
-        'kod',
-        res.map((d) => ({
-          ...toRange(d.range),
-          severity: d.severity === 'error' ? MS.Error : d.severity === 'warning' ? MS.Warning : d.severity === 'info' ? MS.Info : MS.Hint,
-          message: d.message,
-          code: d.code,
-          source: 'C#',
-          tags: d.unnecessary ? [monaco.MarkerTag.Unnecessary] : [],
-        })),
-      );
+      setMarkers(e.model, 'kod', res, 'C#');
       useProblems.getState().setLive(e.path, res);
+
+      // inspections (IDE + project analyzers) are slower: they follow the compiler's answer
+      if (!useSettings.getState().settings.inspections) {
+        monaco.editor.setModelMarkers(e.model, 'kod.ide', []);
+        return;
+      }
+      const ide = await call<DiagnosticDto[]>('/intel/analyzerDiagnostics', body);
+      if (!ide || e.model.isDisposed() || e.model.getVersionId() !== version) return;
+      setMarkers(e.model, 'kod.ide', ide, 'Inspection');
+      useProblems.getState().setLive(e.path, [...res, ...ide]);
     }, delay),
+  );
+}
+
+function setMarkers(model: Model, owner: string, list: DiagnosticDto[], source: string): void {
+  monaco.editor.setModelMarkers(
+    model,
+    owner,
+    list.map((d) => ({
+      ...toRange(d.range),
+      severity: d.severity === 'error' ? MS.Error : d.severity === 'warning' ? MS.Warning : d.severity === 'info' ? MS.Info : MS.Hint,
+      message: d.message,
+      code: d.code,
+      source,
+      tags: d.unnecessary ? [monaco.MarkerTag.Unnecessary] : [],
+    })),
   );
 }
 
 export function refreshAllDiagnostics(): void {
   for (const e of allEntries()) if (!e.ephemeral) scheduleDiagnostics(e, 50);
   refreshSemanticTokens();
+  refreshInlayHints();
 }

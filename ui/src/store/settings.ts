@@ -32,6 +32,12 @@ export interface Settings {
   saveBeforeBuild: boolean;
   previewTabs: boolean;
   showIgnored: boolean;
+  /** Inferred types and parameter names drawn in the code. */
+  inlayHints: boolean;
+  /** Usages / implementations above types and members (Rider's Code Vision). */
+  codeVision: boolean;
+  /** Roslyn IDE analyzers and the projects' analyzers while typing (suggestions, unused code), not only compiler errors. */
+  inspections: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -60,6 +66,9 @@ export const DEFAULT_SETTINGS: Settings = {
   saveBeforeBuild: true,
   previewTabs: true,
   showIgnored: false,
+  inlayHints: true,
+  codeVision: true,
+  inspections: true,
 };
 
 interface SettingsState {

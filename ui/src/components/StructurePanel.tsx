@@ -5,7 +5,7 @@ import type { SymbolDto } from '../api/types';
 import { getEntry } from '../editor/models';
 import { useEditors } from '../store/editors';
 
-const ICON: Record<string, ReactNode> = {
+export const SYMBOL_ICON: Record<string, ReactNode> = {
   namespace: <Layers size={14} className="muted" />,
   class: <Box size={14} style={{ color: 'var(--syn-class)' }} />,
   structure: <Box size={14} style={{ color: 'var(--syn-struct)' }} />,
@@ -71,7 +71,7 @@ export function StructurePanel() {
             <span className="tree-chevron" onClick={(e) => { e.stopPropagation(); setClosed({ ...closed, [key]: open }); }}>
               {s.children.length > 0 ? open ? <ChevronDown size={14} /> : <ChevronRight size={14} /> : null}
             </span>
-            {ICON[s.kind] ?? <CircleDot size={14} className="muted" />}
+            {SYMBOL_ICON[s.kind] ?? <CircleDot size={14} className="muted" />}
             <span className="tree-label">{s.name}</span>
             {s.detail && <span className="tree-hint" style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.detail}</span>}
           </div>

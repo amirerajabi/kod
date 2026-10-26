@@ -22,6 +22,15 @@ import { runFailed, runTests, useTests } from '../store/tests';
 import { useTerminals } from '../store/terminals';
 import { samePath } from '../lib/paths';
 import { newChat, sendMessage } from '../store/ai';
+import type { FileEditsDto } from '../api/types';
+import type { MenuItem } from '../components/common/Menu';
+import { pathOfModel } from '../editor/models';
+import { gotoBase, gotoMember, gotoRelated, navigateBack, navigateForward, showAtCaret } from '../editor/navigation';
+import { surroundWith } from '../editor/postfix';
+import { changeSignature, extractInterface, refactorThis, safeDelete } from '../editor/refactor';
+import { applyFileEdits } from '../store/editors';
+import { showHierarchy } from '../store/hierarchy';
+import { inspectSolution } from '../store/inspections';
 
 function toggleAi(): void {
   const ui = useUi.getState();
@@ -102,7 +111,20 @@ export const COMMANDS: Command[] = [
   { id: 'nav.peekUsages', title: 'Peek Usages', category: 'Navigate', keys: ['Shift+F12'], run: () => editorAction('editor.action.referenceSearch.trigger') },
   { id: 'nav.fileStructure', title: 'File Structure', category: 'Navigate', keys: ['Ctrl+F12'], run: () => editorAction('editor.action.quickOutline') },
   { id: 'nav.findInFiles', title: 'Find in Files', category: 'Navigate', keys: ['Ctrl+Shift+F'], run: () => useUi.getState().showDock('search'), global: true },
-  { id: 'nav.back', title: 'Back', category: 'Navigate', keys: ['Alt+Left'], run: () => editorAction('workbench.action.navigateBack') },
+  { id: 'nav.back', title: 'Back', category: 'Navigate', keys: ['Ctrl+Alt+Left', 'Alt+Left'], run: () => navigateBack(getEditor()), global: true },
+  { id: 'nav.forward', title: 'Forward', category: 'Navigate', keys: ['Ctrl+Alt+Right', 'Alt+Right'], run: () => navigateForward(getEditor()), global: true },
+  { id: 'nav.navigateTo', title: 'Navigate To…', category: 'Navigate', keys: ['Ctrl+Shift+G', 'Alt+`'], run: () => navigateToMenu() },
+  { id: 'nav.typeDefinition', title: 'Go to Type Declaration', category: 'Navigate', keys: ['Ctrl+Shift+F11'], run: () => editorAction('editor.action.goToTypeDefinition') },
+  { id: 'nav.base', title: 'Go to Base Symbols', category: 'Navigate', keys: ['Alt+Home'], run: () => void gotoBase(getEditor()) },
+  { id: 'nav.derived', title: 'Go to Derived Symbols', category: 'Navigate', keys: ['Alt+End'], run: () => editorAction('editor.action.goToImplementation') },
+  { id: 'nav.related', title: 'Go to Related Files…', category: 'Navigate', keys: ['Ctrl+Alt+Home'], run: () => void gotoRelated(getEditor()) },
+  { id: 'nav.recentFiles', title: 'Recent Files…', category: 'Navigate', keys: ['Ctrl+E'], run: () => useUi.getState().openPalette('recentFiles'), global: true },
+  { id: 'nav.recentLocations', title: 'Recent Locations…', category: 'Navigate', keys: ['Ctrl+Shift+E'], run: () => useUi.getState().openPalette('recentPlaces'), global: true },
+  { id: 'nav.nextMember', title: 'Next Member', category: 'Navigate', keys: ['Alt+Down'], run: () => void withEditor((ed) => gotoMember(ed, 1)), when: editorFocused },
+  { id: 'nav.prevMember', title: 'Previous Member', category: 'Navigate', keys: ['Alt+Up'], run: () => void withEditor((ed) => gotoMember(ed, -1)), when: editorFocused },
+  { id: 'nav.callHierarchy', title: 'Call Hierarchy', category: 'Navigate', keys: ['Ctrl+Alt+H'], run: () => hierarchyAtCaret('call') },
+  { id: 'nav.typeHierarchy', title: 'Type Hierarchy', category: 'Navigate', keys: ['Ctrl+H'], run: () => hierarchyAtCaret('type') },
+  { id: 'view.hierarchy', title: 'Hierarchy Window', category: 'View', run: () => useUi.getState().showBottom('hierarchy') },
 
   // Code
   { id: 'code.complete', title: 'Basic Completion', category: 'Code', keys: ['Ctrl+Space'], run: () => editorAction('editor.action.triggerSuggest') },
@@ -116,6 +138,20 @@ export const COMMANDS: Command[] = [
   { id: 'code.fold', title: 'Collapse All', category: 'Code', keys: ['Ctrl+Shift+-'], run: () => editorAction('editor.foldAll') },
   { id: 'code.unfold', title: 'Expand All', category: 'Code', keys: ['Ctrl+Shift+='], run: () => editorAction('editor.unfoldAll') },
   { id: 'code.analyze', title: 'Analyze Solution (all errors and warnings)', category: 'Code', run: needsRoot(analyzeSolution) },
+  { id: 'code.inspect', title: 'Inspect Code (whole solution)', category: 'Code', run: needsRoot(() => inspectSolution()) },
+  { id: 'view.inspections', title: 'Inspection Results', category: 'View', run: () => useUi.getState().showBottom('inspections') },
+  { id: 'code.cleanup', title: 'Code Cleanup (this file)', category: 'Code', keys: ['Ctrl+Alt+Shift+L'], run: () => void codeCleanup() },
+  { id: 'code.surround', title: 'Surround With…', category: 'Code', keys: ['Ctrl+Alt+T'], run: () => void withEditor(surroundWith) },
+  { id: 'code.replace', title: 'Replace in File', category: 'Code', keys: ['Ctrl+R'], run: () => editorAction('editor.action.startFindReplaceAction'), when: editorFocused },
+  { id: 'code.toggleInlayHints', title: 'Toggle Inlay Hints', category: 'Code', run: () => useSettings.getState().update({ inlayHints: !useSettings.getState().settings.inlayHints }) },
+  { id: 'code.toggleCodeVision', title: 'Toggle Code Vision', category: 'Code', run: () => useSettings.getState().update({ codeVision: !useSettings.getState().settings.codeVision }) },
+
+  // Refactor
+  { id: 'refactor.this', title: 'Refactor This…', category: 'Refactor', keys: ['Ctrl+Shift+R'], run: () => void refactorThis(getEditor()) },
+  { id: 'refactor.rename', title: 'Rename…', category: 'Refactor', run: () => editorAction('editor.action.rename') },
+  { id: 'refactor.changeSignature', title: 'Change Signature…', category: 'Refactor', keys: ['Ctrl+F6'], run: () => void changeSignature(getEditor()) },
+  { id: 'refactor.safeDelete', title: 'Safe Delete…', category: 'Refactor', keys: ['Alt+Delete'], run: () => void safeDelete(getEditor()) },
+  { id: 'refactor.extractInterface', title: 'Extract Interface…', category: 'Refactor', run: () => void extractInterface(getEditor()) },
 
   // Build / Run
   { id: 'build.build', title: 'Build Solution', category: 'Build', keys: ['Ctrl+Shift+B', 'Ctrl+F9'], run: needsRoot(() => dotnetBuild('build')), global: true },
@@ -194,6 +230,70 @@ function newItemDir(): string {
   return file ? file.replace(/[\\/][^\\/]+$/, '') : root;
 }
 
+function editorFocused(): boolean {
+  return !!getEditor()?.hasTextFocus();
+}
+
+function withEditor(fn: (ed: NonNullable<ReturnType<typeof getEditor>>) => unknown): void {
+  const ed = getEditor();
+  if (ed?.getModel()) void fn(ed);
+}
+
+function hierarchyAtCaret(kind: 'call' | 'type'): void {
+  const ed = getEditor();
+  const model = ed?.getModel();
+  const pos = ed?.getPosition();
+  const path = pathOfModel(model);
+  if (!model || !pos || !path || model.getLanguageId() !== 'csharp') {
+    toast('info', 'Put the caret on a C# symbol first');
+    return;
+  }
+  void showHierarchy(kind, { path, text: model.getValue(), line: pos.lineNumber, column: pos.column });
+}
+
+/** Navigate To (Ctrl+Shift+G): every way to jump from the symbol at the caret. */
+function navigateToMenu(): void {
+  const ed = getEditor();
+  if (!ed?.getModel()) return;
+  const item = (id: string, label?: string): MenuItem => {
+    const c = commandById(id)!;
+    return { label: label ?? c.title, shortcut: c.keys?.[0] ? keyLabel(c.keys[0]) : undefined, run: () => void c.run() };
+  };
+  showAtCaret(ed, [
+    { label: 'Navigate to', disabled: true },
+    'separator',
+    item('nav.definition', 'Declaration'),
+    item('nav.typeDefinition', 'Type Declaration'),
+    item('nav.implementation', 'Implementations'),
+    item('nav.base', 'Base Symbols'),
+    item('nav.derived', 'Derived Symbols'),
+    item('nav.usages', 'Usages'),
+    'separator',
+    item('nav.related', 'Related Files'),
+    item('nav.callHierarchy'),
+    item('nav.typeHierarchy'),
+    item('nav.fileStructure'),
+  ]);
+}
+
+async function codeCleanup(): Promise<void> {
+  const ed = getEditor();
+  const model = ed?.getModel();
+  const path = pathOfModel(model);
+  if (!ed || !model || !path || model.getLanguageId() !== 'csharp' || model.uri.scheme !== 'file') {
+    toast('info', 'Open a C# file to clean it up');
+    return;
+  }
+  try {
+    const files = await api.post<FileEditsDto[]>('/intel/cleanup', { path, text: model.getValue() });
+    const changed = files.some((f) => f.edits.length > 0 || f.created || f.deleted);
+    await applyFileEdits(files);
+    toast(changed ? 'success' : 'info', changed ? 'Code cleaned up' : 'Nothing to clean up', undefined, 2500);
+  } catch (e) {
+    toast('error', 'Code Cleanup failed', errorText(e));
+  }
+}
+
 function openTerminal(): void {
   useUi.getState().showBottom('terminal');
   if (useTerminals.getState().terms.length === 0) void startTerminal();
@@ -240,6 +340,8 @@ function chordOf(e: KeyboardEvent): string {
   else if (key.length === 1) key = key.toUpperCase();
   else if (key === 'ArrowLeft') key = 'Left';
   else if (key === 'ArrowRight') key = 'Right';
+  else if (key === 'ArrowUp') key = 'Up';
+  else if (key === 'ArrowDown') key = 'Down';
   if (e.code === 'Backquote') key = '`';
   if (e.code === 'Equal') key = '=';
   if (e.code === 'Minus') key = '-';
@@ -250,7 +352,7 @@ function chordOf(e: KeyboardEvent): string {
 }
 
 /** Shortcuts Monaco implements itself: left to the editor when it has focus. */
-const EDITOR_OWNED = new Set(['F9', 'Ctrl+F8', 'F12', 'Ctrl+B', 'Ctrl+Alt+B', 'Alt+F7', 'Shift+F12', 'Ctrl+F12', 'Alt+Left', 'Ctrl+Space', 'Alt+Enter', 'Ctrl+.', 'F2', 'Shift+F6', 'Ctrl+Alt+L', 'Shift+Alt+F', 'Ctrl+/', 'Ctrl+Shift+/', 'Ctrl+Shift+Space', 'Ctrl+Q', 'Ctrl+Shift+-', 'Ctrl+Shift+=']);
+const EDITOR_OWNED = new Set(['F9', 'Ctrl+F8', 'F12', 'Ctrl+B', 'Ctrl+Alt+B', 'Alt+F7', 'Shift+F12', 'Ctrl+F12', 'Ctrl+Space', 'Alt+Enter', 'Ctrl+.', 'F2', 'Shift+F6', 'Ctrl+Alt+L', 'Shift+Alt+F', 'Ctrl+/', 'Ctrl+Shift+/', 'Ctrl+Shift+Space', 'Ctrl+Q', 'Ctrl+Shift+-', 'Ctrl+Shift+=']);
 
 export function installKeys(): () => void {
   let pendingChord: string | null = null;

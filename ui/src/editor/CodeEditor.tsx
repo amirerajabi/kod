@@ -12,6 +12,7 @@ import { scheduleDiagnostics } from './csharp';
 import { attachDebugDecorations, toggleBreakpointAtCursor } from './debugEditor';
 import { attachGitDecorations } from './gitEditor';
 import { entryOfModel, getEntry } from './models';
+import { attachNavigation } from './navigation';
 import { monaco } from './monaco';
 
 let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -124,6 +125,7 @@ export function CodeEditor() {
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F8, () => toggleBreakpointAtCursor(ed));
     const detachDebug = attachDebugDecorations(ed);
     const detachGit = attachGitDecorations(ed);
+    const detachNav = attachNavigation(ed);
 
     ed.onDidChangeCursorSelection((e) => {
       const model = ed.getModel();
@@ -150,6 +152,7 @@ export function CodeEditor() {
     return () => {
       detachDebug();
       detachGit();
+      detachNav();
       editorInstance = null;
       ed.dispose();
     };

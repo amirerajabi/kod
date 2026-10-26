@@ -1773,3 +1773,65 @@ button.sb-item:hover {
   opacity: 0.5;
 }
 
+
+/* ---- Change Signature */
+.sig-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.sig-table th {
+  text-align: left;
+  font-weight: var(--weight-medium, 500);
+  color: var(--fg-muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--border);
+}
+.sig-table td {
+  padding: 3px 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.sig-table tr.selected td {
+  background: var(--bg-selected);
+}
+.sig-table .input.sm {
+  width: 100%;
+  font-family: var(--font-mono);
+}
+.sig-preview {
+  margin: 0;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  border-radius: 6px;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ---- Hierarchy and Inspections tool windows */
+.hier-detail {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.tree-row .hier-go {
+  margin-left: auto;
+  opacity: 0;
+}
+.tree-row:hover .hier-go {
+  opacity: 1;
+}
+.insp-title {
+  font-weight: var(--weight-medium, 500);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.result-item .insp-dir {
+  margin-left: auto;
+  white-space: nowrap;
+  font-size: var(--text-xs);
+}

@@ -1,11 +1,12 @@
-import { ChevronRight, CornerDownLeft, File, Hash, Search, Terminal } from 'lucide-react';
+import { ChevronRight, CornerDownLeft, File, Hash, History, Search, Terminal } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api, isAbort } from '../api/client';
 import type { WorkspaceSymbolDto } from '../api/types';
 import { COMMANDS, keyLabel } from '../app/commands';
 import { getEditor } from '../editor/CodeEditor';
 import { fuzzy } from '../lib/fuzzy';
-import { basename, dirname, relative } from '../lib/paths';
+import { basename, dirname, relative, samePath } from '../lib/paths';
+import { getRecentFiles, getRecentPlaces } from '../editor/navigation';
 import { useEditors } from '../store/editors';
 import { useUi, type PaletteMode } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
@@ -58,7 +59,9 @@ export function CommandPalette() {
     if (root) void useWorkspace.getState().loadFiles().then(setFiles).catch(() => setFiles([]));
   }, [open, seed, root]);
 
-  const { mode, query } = modeOf(text);
+  // Recent Files / Recent Locations are their own lists: the text only filters them
+  const special = open === 'recentFiles' || open === 'recentPlaces' ? open : null;
+  const { mode, query } = special ? { mode: special, query: text.trim() } : modeOf(text);
 
   useEffect(() => {
     if (mode !== 'symbols' || !query) {
@@ -97,6 +100,28 @@ export function CommandPalette() {
         icon: <Hash size={14} />,
         run: () => void useEditors.getState().open(s.path, { range: s.range }),
       }));
+    }
+    if (mode === 'recentFiles') {
+      const active = useEditors.getState().active;
+      const list = [...getRecentFiles()];
+      // the current file second, so Enter goes back to the previous one (Rider's Ctrl+E)
+      if (active && list.length > 1 && samePath(list[0], active)) [list[0], list[1]] = [list[1], list[0]];
+      return list
+        .map((p) => ({ p, m: query ? fuzzy(query, basename(p)) : { score: 0, hits: [] } }))
+        .filter((x) => x.m)
+        .map(({ p, m }) => ({ key: p, label: basename(p), hits: m!.hits, detail: relative(root, dirname(p)), icon: <FileIcon path={p} size={14} />, run: () => void useEditors.getState().open(p) }));
+    }
+    if (mode === 'recentPlaces') {
+      return getRecentPlaces()
+        .map((pl) => ({ pl, m: query ? fuzzy(query, `${basename(pl.path)} ${pl.text ?? ''}`) : { score: 0, hits: [] } }))
+        .filter((x) => x.m)
+        .map(({ pl }) => ({
+          key: `${pl.path}:${pl.line}:${pl.at}`,
+          label: `${basename(pl.path)}:${pl.line}`,
+          detail: pl.text,
+          icon: <History size={14} />,
+          run: () => void useEditors.getState().open(pl.path, { line: pl.line, column: pl.column }),
+        }));
     }
     if (mode === 'line') {
       const [l, c] = query.split(/[:,]/).map((x) => parseInt(x, 10));
@@ -144,7 +169,7 @@ export function CommandPalette() {
     }
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, 100).map(({ p, hits }) => ({ key: p, label: basename(p), hits, detail: relative(root, dirname(p)), icon: <FileIcon path={p} size={14} />, run: () => void useEditors.getState().open(p) }));
-  }, [mode, query, files, symbols, root]);
+  }, [mode, query, files, symbols, root, open]);
 
   useEffect(() => setSel(0), [text]);
   useEffect(() => {
@@ -160,13 +185,15 @@ export function CommandPalette() {
     it.run();
   };
 
-  const placeholder = mode === 'commands' ? 'Find an action' : mode === 'symbols' ? 'Find a type or member' : mode === 'line' ? 'Line[:column]' : 'Search files (> actions, # symbols, : line)';
+  const placeholder =
+    mode === 'commands' ? 'Find an action' : mode === 'symbols' ? 'Find a type or member' : mode === 'line' ? 'Line[:column]' : mode === 'recentFiles' ? 'Filter recent files' : mode === 'recentPlaces' ? 'Filter recent locations' : 'Search files (> actions, # symbols, : line)';
+  const modeLabel = { files: 'Files', commands: 'Actions', symbols: 'Symbols', line: 'Line', recentFiles: 'Recent files', recentPlaces: 'Recent locations' }[mode];
 
   return (
     <div className="overlay soft" onMouseDown={(e) => e.target === e.currentTarget && close()}>
       <div className="palette" role="dialog" aria-label="Search everywhere">
         <div className="palette-input-row">
-          {mode === 'files' ? <File size={16} /> : mode === 'commands' ? <Terminal size={16} /> : mode === 'symbols' ? <Hash size={16} /> : <Search size={16} />}
+          {mode === 'files' ? <File size={16} /> : mode === 'commands' ? <Terminal size={16} /> : mode === 'symbols' ? <Hash size={16} /> : mode === 'recentPlaces' || mode === 'recentFiles' ? <History size={16} /> : <Search size={16} />}
           <input
             ref={input}
             className="palette-input"
@@ -178,7 +205,7 @@ export function CommandPalette() {
               else if (e.key === 'ArrowDown') setSel((s) => Math.min(items.length - 1, s + 1));
               else if (e.key === 'ArrowUp') setSel((s) => Math.max(0, s - 1));
               else if (e.key === 'Enter') choose(sel);
-              else if (e.key === 'Tab') {
+              else if (e.key === 'Tab' && !special) {
                 // cycle the modes like Rider's Search Everywhere tabs
                 const order = ['', '>', '#'];
                 const cur = order.indexOf(text[0] && PREFIX[text[0]] ? text[0] : '');
@@ -188,7 +215,7 @@ export function CommandPalette() {
             }}
             spellCheck={false}
           />
-          <span className="palette-mode">{mode === 'files' ? 'Files' : mode === 'commands' ? 'Actions' : mode === 'symbols' ? 'Symbols' : 'Line'}</span>
+          <span className="palette-mode">{modeLabel}</span>
         </div>
         <div className="palette-list" ref={list} role="listbox">
           {items.length === 0 && <div className="palette-empty">{mode === 'symbols' && !query ? 'Type a symbol name' : root || mode !== 'files' ? 'No matches' : 'Open a folder to search its files'}</div>}

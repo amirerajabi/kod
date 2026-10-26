@@ -118,6 +118,11 @@ export function EditorSection() {
           <Select id="set-ws" value={s.renderWhitespace} options={[['none', 'Never'], ['selection', 'In the selection'], ['all', 'Always']]} onChange={(v) => up({ renderWhitespace: v })} />
         </Row>
       </Card>
+      <Card title="Code insight">
+        <ToggleRow id="set-inlay" label="Inlay hints" hint="Parameter names before literal arguments and the inferred types of var and lambda parameters" keywords="inlay hints parameter names types var" checked={s.inlayHints} onChange={(v) => up({ inlayHints: v })} />
+        <ToggleRow id="set-vision" label="Code Vision" hint="Usages, implementations and overrides above types and members" keywords="code vision lens usages implementations inheritors" checked={s.codeVision} onChange={(v) => up({ codeVision: v })} />
+        <ToggleRow id="set-inspect" label="Code inspections while typing" hint="Roslyn's IDE analyzers and your projects' analyzers (suggestions, unused code, style), not only compiler errors" keywords="inspections analyzers suggestions warnings ide unused" checked={s.inspections} onChange={(v) => up({ inspections: v })} />
+      </Card>
     </>
   );
 }
