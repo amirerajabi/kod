@@ -2,7 +2,7 @@
 // the breakpoints (kept per workspace, sent to the engine when a session starts and whenever they change).
 import { create } from 'zustand';
 import { api, errorText } from '../api/client';
-import { norm, samePath } from '../lib/paths';
+import { basename, norm, samePath } from '../lib/paths';
 import { loadRaw, save } from '../lib/storage';
 import { useEditors } from './editors';
 import { dotnetBuild } from './procs';
@@ -204,7 +204,8 @@ export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
   switch (e.type) {
     case 'debug.state': {
       const state = e.state as string;
-      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program: (e.program as string) ?? null, ...(state === 'running' ? { frames: [], frameId: null } : {}) });
+      const program = typeof e.program === 'string' ? basename(e.program).replace(/\.dll$/i, '') : useDebug.getState().program;
+      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program, ...(state === 'running' ? { frames: [], frameId: null } : {}) });
       break;
     }
     case 'debug.stopped': {

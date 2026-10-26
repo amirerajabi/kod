@@ -402,13 +402,39 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
             foreach (var (_, t) in pending) t.TrySetException(new InvalidOperationException("The debug session ended"));
             pending.Clear();
             initialized.TrySetResult();
-            try
+            if (proc is { HasExited: false } p)
             {
-                if (proc is { HasExited: false }) proc.Kill(entireProcessTree: true);
-            }
-            catch
-            {
-                // already gone
+                // Kill(entireProcessTree) can throw on a child that is already exiting and then skip netcoredbg itself:
+                // ask nicely, kill the tree, then make sure of the adapter
+                try
+                {
+                    var bytes = Encoding.UTF8.GetBytes(new JsonObject { ["seq"] = 999_999, ["type"] = "request", ["command"] = "disconnect", ["arguments"] = new JsonObject { ["terminateDebuggee"] = true } }.ToJsonString());
+                    var stdin = p.StandardInput.BaseStream;
+                    stdin.Write(Encoding.ASCII.GetBytes($"Content-Length: {bytes.Length}\r\n\r\n"));
+                    stdin.Write(bytes);
+                    stdin.Flush();
+                    p.WaitForExit(1500);
+                }
+                catch
+                {
+                    // the pipe is gone
+                }
+                try
+                {
+                    if (!p.HasExited) p.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                    // a child was already exiting
+                }
+                try
+                {
+                    if (!p.HasExited) p.Kill();
+                }
+                catch
+                {
+                    // already gone
+                }
             }
             State = "idle";
             Publish("debug.ended", new { reason });

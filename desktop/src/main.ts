@@ -21,7 +21,9 @@ if (process.platform === 'win32') app.setAppUserModelId('dev.kod.ide');
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'kod', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, codeCache: true } }]);
 
-if (!app.requestSingleInstanceLock()) app.quit();
+// a smoke test runs beside an installed Kod: its own profile, no single-instance hand-off
+if (process.env.KOD_SMOKE_SHOT) app.setPath('userData', path.join(app.getPath('temp'), `kod-smoke-${process.pid}`));
+else if (!app.requestSingleInstanceLock()) app.quit();
 
 let win: BrowserWindow | null = null;
 let engine: Engine | null = null;
