@@ -4,7 +4,9 @@ import type { MetaDto } from '../api/types';
 import { connectEvents, onEngineEvent } from '../api/ws';
 import { refreshAllDiagnostics, refreshInlayHints, registerCSharp } from '../editor/csharp';
 import { refreshCodeVision, registerCodeVision } from '../editor/codeVision';
+import { todosMaybeChanged } from '../components/TodoPanel';
 import { registerPostfix } from '../editor/postfix';
+import { registerSql } from '../editor/sql';
 import { allEntries, isDirty, replaceText } from '../editor/models';
 import { basename, samePath } from '../lib/paths';
 import { platform } from '../platform';
@@ -69,6 +71,7 @@ export async function boot(): Promise<void> {
   registerTestLenses();
   registerCodeVision();
   registerPostfix();
+  registerSql();
   void refreshKeys();
   window.addEventListener('focus', () => refreshGit(100));
 
@@ -95,6 +98,7 @@ export async function boot(): Promise<void> {
       case 'fs.changed':
         for (const f of e.files) onDiskChange(f);
         if (e.files.some((f) => /\.cs$/i.test(f))) refreshCodeVision();
+        todosMaybeChanged();
         refreshGit(600);
         if (e.files.some((f) => /\.(cs|csproj)$/i.test(f))) discoverTests(2500);
         break;
@@ -146,7 +150,9 @@ export async function boot(): Promise<void> {
   const title = () => {
     const ws = useWorkspace.getState().ws;
     const active = useEditors.getState().active;
-    const parts = [active && !active.startsWith('kod-metadata:') ? basename(active) : null, ws.root ? basename(ws.target ?? ws.root) : null, 'Kod'].filter(Boolean);
+    const tab = useEditors.getState().tabs.find((t) => t.path === active);
+    const name = !active || active.startsWith('kod-metadata:') ? null : tab && tab.kind !== 'file' ? tab.title : basename(active);
+    const parts = [name, ws.root ? basename(ws.target ?? ws.root) : null, 'Kod'].filter(Boolean);
     platform.setTitle(parts.join(' – '));
   };
   useWorkspace.subscribe(title);

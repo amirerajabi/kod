@@ -1,4 +1,4 @@
-import { Bug, FlaskConical, GitBranch, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bookmark as BookmarkIcon, Container as ContainerIcon, Database as DatabaseIcon, Bug, FlaskConical, GitBranch, ListTodo, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -15,12 +15,16 @@ import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
 import { GitLogPanel } from './GitLogPanel';
 import { HierarchyPanel } from './HierarchyPanel';
+import { BookmarksPanel, TodoPanel } from './TodoPanel';
+import { DbResultsPanel } from './DbResultsPanel';
+import { ServicesPanel } from './ServicesPanel';
 import { InspectionsPanel } from './InspectionsPanel';
 import { NugetWindow } from './NugetWindow';
 import { TerminalPane } from './TerminalPane';
 import { TestsPanel } from './TestsPanel';
 import { useTests } from '../store/tests';
 import { useInspections } from '../store/inspections';
+import { useDb } from '../store/database';
 import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
 
@@ -36,6 +40,7 @@ export function BottomPanel() {
   const debugStatus = useDebug((s) => s.status);
   const testsRunning = useTests((s) => s.running.size > 0);
   const inspecting = useInspections((s) => s.running);
+  const dbRunning = useDb((s) => Object.values(s.runs).some((r) => r.running));
   const [start, setStart] = useState(height);
   if (!visible) return null;
   const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
@@ -56,6 +61,10 @@ export function BottomPanel() {
     { id: 'inspections', label: 'Inspections', icon: inspecting ? <LoaderCircle size={14} className="spin" /> : <ListChecks size={14} /> },
     { id: 'usages', label: 'Find Usages', icon: <ScanSearch size={14} /> },
     { id: 'hierarchy', label: 'Hierarchy', icon: <Network size={14} /> },
+    { id: 'todo', label: 'TODO', icon: <ListTodo size={14} /> },
+    { id: 'bookmarks', label: 'Bookmarks', icon: <BookmarkIcon size={14} /> },
+    { id: 'services', label: 'Services', icon: <ContainerIcon size={14} /> },
+    { id: 'database', label: 'Database', icon: dbRunning ? <LoaderCircle size={14} className="spin" /> : <DatabaseIcon size={14} /> },
     { id: 'terminal', label: 'Terminal', icon: <SquareTerminal size={14} /> },
   ];
 
@@ -93,6 +102,10 @@ export function BottomPanel() {
           {tab === 'inspections' && <InspectionsPanel />}
           {tab === 'usages' && <UsagesPane />}
           {tab === 'hierarchy' && <HierarchyPanel />}
+          {tab === 'todo' && <TodoPanel />}
+          {tab === 'bookmarks' && <BookmarksPanel />}
+          {tab === 'database' && <DbResultsPanel />}
+          {tab === 'services' && <ServicesPanel />}
         </div>
       </section>
     </>

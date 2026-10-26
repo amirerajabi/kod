@@ -88,6 +88,15 @@ export function ensureVirtualModel(uri: string, path: string, text: string): Mod
   return register(path, model, true, false);
 }
 
+/** An editable scratch document that is not a file (a SQL console). */
+export function ensureConsoleModel(path: string, text: string, language = 'sql'): ModelEntry {
+  const existing = entries.get(norm(path));
+  if (existing) return existing;
+  const u = monaco.Uri.parse(`kod-console:/${encodeURIComponent(path)}`);
+  const model = monaco.editor.getModel(u) ?? monaco.editor.createModel(text, language, u);
+  return register(path, model, false, false);
+}
+
 export function markSaved(e: ModelEntry): void {
   e.savedVersion = e.model.getAlternativeVersionId();
   for (const l of listeners) l(e);

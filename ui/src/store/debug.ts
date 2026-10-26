@@ -144,7 +144,7 @@ async function ensureAdapter(): Promise<boolean> {
   }
 }
 
-export async function startDebugging(projectPath?: string): Promise<void> {
+export async function startDebugging(projectPath?: string, opts: { docker?: boolean } = {}): Promise<void> {
   const d = useDebug.getState();
   if (d.status === 'stopped') return step('continue');
   if (d.status !== 'idle') return;
@@ -153,7 +153,7 @@ export async function startDebugging(projectPath?: string): Promise<void> {
     toast('warning', 'Nothing to debug', 'Choose a console, web or worker project as the run configuration.');
     return;
   }
-  if (!(await ensureAdapter())) return;
+  if (!opts.docker && !(await ensureAdapter())) return;
   if (useSettings.getState().settings.saveBeforeBuild) await useEditors.getState().saveAll();
   useDebug.setState({ status: 'building', output: '', frames: [], frameId: null, reason: null, program: project.name });
   const built = await dotnetBuild('build', project.path);
@@ -166,7 +166,7 @@ export async function startDebugging(projectPath?: string): Promise<void> {
   useUi.getState().showBottom('debug');
   const breakpoints = Object.fromEntries(Object.values(useDebug.getState().breakpoints).map((v) => [v.path, v.bps.map((b) => ({ line: b.line, condition: b.condition }))]));
   try {
-    await api.post('/debug/start', { projectPath: project.path, breakpoints });
+    await api.post('/debug/start', { projectPath: project.path, breakpoints, docker: !!opts.docker });
   } catch (e) {
     useDebug.setState({ status: 'idle' });
     toast('error', 'Could not start debugging', errorText(e));

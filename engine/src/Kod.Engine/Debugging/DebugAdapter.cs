@@ -54,6 +54,25 @@ public sealed class DebugAdapter(IHttpClientFactory http, ILogger<DebugAdapter> 
     public async Task<AdapterDto> InstallAsync(CancellationToken ct)
     {
         var asset = AssetName() ?? throw new InvalidOperationException("netcoredbg has no build for this operating system");
+        await DownloadAsync(asset, InstallDir, ct);
+        var exe = Locate();
+        if (exe is not null && !OperatingSystem.IsWindows())
+            File.SetUnixFileMode(exe, File.GetUnixFileMode(exe) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+        return Describe();
+    }
+
+    /// <summary>The Linux netcoredbg that debugs inside containers (downloaded once): the folder that holds it.</summary>
+    public async Task<string> InstallLinuxAsync(bool arm64, CancellationToken ct)
+    {
+        var dir = System.IO.Path.Combine(System.IO.Path.GetDirectoryName(InstallDir)!, arm64 ? "netcoredbg-linux-arm64" : "netcoredbg-linux-amd64");
+        string? Find() => Directory.Exists(dir) ? Directory.EnumerateFiles(dir, "netcoredbg", SearchOption.AllDirectories).FirstOrDefault() : null;
+        if (Find() is null) await DownloadAsync(arm64 ? "netcoredbg-linux-arm64.tar.gz" : "netcoredbg-linux-amd64.tar.gz", dir, ct);
+        return System.IO.Path.GetDirectoryName(Find() ?? throw new InvalidOperationException("The Linux debugger archive has no netcoredbg"))!;
+    }
+
+    /// <summary>Downloads a netcoredbg release asset from GitHub and unpacks it into <paramref name="target"/>.</summary>
+    private async Task DownloadAsync(string asset, string target, CancellationToken ct)
+    {
         var client = http.CreateClient("nuget");
         using var rel = JsonDocument.Parse(await client.GetStringAsync("https://api.github.com/repos/Samsung/netcoredbg/releases/latest", ct));
         var tag = rel.RootElement.GetProperty("tag_name").GetString() ?? "latest";
@@ -83,13 +102,10 @@ public sealed class DebugAdapter(IHttpClientFactory http, ILogger<DebugAdapter> 
                 await using var gz = new GZipStream(fs, CompressionMode.Decompress);
                 await TarFile.ExtractToDirectoryAsync(gz, outDir, overwriteFiles: true, ct);
             }
-            if (Directory.Exists(InstallDir)) Directory.Delete(InstallDir, recursive: true);
-            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(InstallDir)!);
-            Directory.Move(outDir, InstallDir);
-            File.WriteAllText(System.IO.Path.Combine(InstallDir, "version.txt"), tag);
-            var exe = Locate();
-            if (exe is not null && !OperatingSystem.IsWindows())
-                File.SetUnixFileMode(exe, File.GetUnixFileMode(exe) | UnixFileMode.UserExecute | UnixFileMode.GroupExecute | UnixFileMode.OtherExecute);
+            if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
+            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(target)!);
+            Directory.Move(outDir, target);
+            File.WriteAllText(System.IO.Path.Combine(target, "version.txt"), tag);
         }
         finally
         {
@@ -101,6 +117,5 @@ public sealed class DebugAdapter(IHttpClientFactory http, ILogger<DebugAdapter> 
             {
             }
         }
-        return Describe();
     }
 }

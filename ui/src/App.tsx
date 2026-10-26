@@ -11,6 +11,7 @@ import { Dock } from './components/Dock';
 import { EditorArea } from './components/EditorArea';
 import { NewProjectDialog } from './components/NewProjectDialog';
 import { RefactorDialogs } from './components/RefactorDialogs';
+import { GitDialogs } from './components/GitDialogs';
 import { RemotesDialog } from './components/RemotesDialog';
 import { SettingsDialog } from './components/settings/SettingsDialog';
 import { ShortcutSheet } from './components/ShortcutSheet';
@@ -57,6 +58,7 @@ export default function App() {
       <NewProjectDialog />
       <RemotesDialog />
       <RefactorDialogs />
+      <GitDialogs />
       <PromptDialog />
       <ConfirmDialog />
       <Toasts />

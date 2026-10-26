@@ -13,6 +13,9 @@ import { attachDebugDecorations, toggleBreakpointAtCursor } from './debugEditor'
 import { attachGitDecorations } from './gitEditor';
 import { entryOfModel, getEntry } from './models';
 import { attachNavigation } from './navigation';
+import { attachBookmarks } from './bookmarks';
+import { runConsole } from './sql';
+import { SqlConsoleBar } from '../components/DatabasePanel';
 import { monaco } from './monaco';
 
 let editorInstance: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -85,7 +88,7 @@ export function CodeEditor() {
       scrollBeyondLastLine: false,
       renderLineHighlight: 'all',
       suggest: { showStatusBar: true, preview: true, selectionMode: 'always' },
-      quickSuggestions: { other: true, comments: false, strings: false },
+      quickSuggestions: { other: true, comments: false, strings: true },
       inlayHints: { enabled: 'on' },
       lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.OnCode },
       padding: { top: 6 },
@@ -121,11 +124,14 @@ export function CodeEditor() {
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.UpArrow, () => ed.trigger('kod', 'editor.action.moveLinesUpAction', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.DownArrow, () => ed.trigger('kod', 'editor.action.moveLinesDownAction', {}));
 
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => runConsole(ed), "editorLangId == 'sql'");
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Shift | monaco.KeyCode.Enter, () => runConsole(ed, true), "editorLangId == 'sql'");
     ed.addCommand(monaco.KeyCode.F9, () => toggleBreakpointAtCursor(ed));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F8, () => toggleBreakpointAtCursor(ed));
     const detachDebug = attachDebugDecorations(ed);
     const detachGit = attachGitDecorations(ed);
     const detachNav = attachNavigation(ed);
+    const detachBookmarks = attachBookmarks(ed);
 
     ed.onDidChangeCursorSelection((e) => {
       const model = ed.getModel();
@@ -153,6 +159,7 @@ export function CodeEditor() {
       detachDebug();
       detachGit();
       detachNav();
+      detachBookmarks();
       editorInstance = null;
       ed.dispose();
     };
@@ -232,7 +239,7 @@ export function CodeEditor() {
 
   return (
     <>
-      {tab && tab.kind !== 'diff' && (
+      {tab && (tab.kind === 'file' || tab.kind === 'metadata') && (
         <div className="breadcrumbs" aria-label="Breadcrumbs">
           {rel.split(/[\\/]/).map((seg, i, arr) => (
             <span key={`p${i}`} className="crumb" style={{ cursor: 'default' }}>
@@ -259,6 +266,7 @@ export function CodeEditor() {
           {symbols.length === 0 && null}
         </div>
       )}
+      {tab?.kind === 'sql' && <SqlConsoleBar path={tab.path} run={(all) => editorInstance && runConsole(editorInstance, all)} />}
       {tab?.kind === 'metadata' && <div className="readonly-banner">Decompiled declarations from metadata (read-only). Members have no bodies.</div>}
       <div className="editor-host">
         <div ref={host} className="monaco" />

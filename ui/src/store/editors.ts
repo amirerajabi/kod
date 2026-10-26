@@ -12,7 +12,7 @@ import { useWorkspace } from './workspace';
 export interface Tab {
   path: string;
   title: string;
-  kind: 'file' | 'metadata' | 'diff';
+  kind: 'file' | 'metadata' | 'diff' | 'history' | 'merge' | 'sql';
   preview: boolean;
   dirty: boolean;
   readOnly: boolean;
@@ -43,6 +43,10 @@ interface EditorsState {
   open(path: string, opts?: { line?: number; column?: number; range?: RangeDto; preview?: boolean; focus?: boolean }): Promise<void>;
   openMetadata(view: MetadataViewDto): void;
   openDiff(spec: DiffSpec): void;
+  /** Local History of a file: its revisions, each diffed against the current text. */
+  openHistory(path: string): void;
+  /** The three-way merge tool for a conflicted file. */
+  openMerge(path: string): void;
   activate(path: string): void;
   pin(path: string): void;
   close(path: string): Promise<boolean>;
@@ -122,6 +126,20 @@ export const useEditors = create<EditorsState>((set, get) => ({
     const side = (r: string) => (r === 'working' ? 'Working' : r === ':' ? 'Staged' : r === 'HEAD' ? 'HEAD' : r.slice(0, 7));
     const title = spec.title ?? `${basename(spec.path)} (${side(spec.left)} ↔ ${side(spec.right)})`;
     if (!get().tabs.some((t) => t.path === path)) set((s) => ({ tabs: [...s.tabs, { path, title, kind: 'diff', preview: false, dirty: false, readOnly: true, diff: spec }] }));
+    set({ active: path });
+  },
+
+  openHistory: (file) => {
+    const path = `kod-history:${file}`;
+    if (!get().tabs.some((t) => t.path === path))
+      set((s) => ({ tabs: [...s.tabs, { path, title: `${basename(file)} (Local History)`, kind: 'history', preview: false, dirty: false, readOnly: true, diff: { path: file, left: '', right: 'working' } }] }));
+    set({ active: path });
+  },
+
+  openMerge: (file) => {
+    const path = `kod-merge:${file}`;
+    if (!get().tabs.some((t) => t.path === path))
+      set((s) => ({ tabs: [...s.tabs, { path, title: `${basename(file)} (Merge)`, kind: 'merge', preview: false, dirty: false, readOnly: false, diff: { path: file, left: ':2', right: ':3' } }] }));
     set({ active: path });
   },
 
@@ -213,8 +231,8 @@ export const useEditors = create<EditorsState>((set, get) => ({
 }));
 
 function releaseModel(path: string): void {
-  if (path.startsWith('kod-diff:')) return;
-  if (path.startsWith('kod-metadata:')) {
+  if (path.startsWith('kod-diff:') || path.startsWith('kod-history:') || path.startsWith('kod-merge:')) return;
+  if (path.startsWith('kod-metadata:') || path.startsWith('kod-sql:')) {
     disposeModel(path);
     return;
   }
@@ -309,7 +327,7 @@ export async function applyFileEdits(files: FileEditsDto[]): Promise<number> {
     try {
       const file = await api.get<{ text: string }>('/fs/read', { path: f.path });
       const next = applyToText(file.text, f.edits);
-      await api.post('/fs/write', { path: f.path, text: next });
+      await api.post('/fs/write', { path: f.path, text: next, label: 'Refactoring' });
       if (entry) {
         entry.model.setValue(next);
         markSaved(entry);

@@ -29,6 +29,8 @@ export interface GitStatus {
   behind: number;
   detached: boolean;
   files: GitFile[];
+  /** The merge, rebase, cherry-pick or revert that stopped (conflicts, an edit). */
+  operation?: 'merge' | 'rebase' | 'cherry-pick' | 'revert';
 }
 
 export interface GitBranch {
@@ -122,10 +124,16 @@ export async function rollback(paths: string[]): Promise<void> {
   await op('Rollback', () => api.post('/git/discard', { paths }), `Rolled back ${n} file${n === 1 ? '' : 's'}`);
 }
 
-export async function commit(message: string, paths: string[] | null, amend: boolean, push: boolean): Promise<boolean> {
+/** A file committed in part: the chosen hunks and, per hunk, the chosen changed lines (null = the whole hunk). */
+export interface PartialFile {
+  path: string;
+  hunks: { index: number; lines: number[] | null }[];
+}
+
+export async function commit(message: string, paths: string[] | null, amend: boolean, push: boolean, partial?: PartialFile[]): Promise<boolean> {
   await useEditors.getState().saveAll();
   const ok = await op(amend ? 'Amend commit' : 'Commit', async () => {
-    const r = await api.post<{ hash: string }>('/git/commit', { message, paths, amend });
+    const r = await api.post<{ hash: string }>('/git/commit', { message, paths, amend, partial: partial?.length ? partial : undefined });
     toast('success', `Committed ${r.hash}`, message.split('\n')[0], 3000);
   });
   if (ok && push) await gitPush();
@@ -191,4 +199,100 @@ export const initRepository = () => op('Init repository', () => api.post('/git/i
 /** Opens a diff tab: the file at `left` (HEAD, ':' index, or a commit) against the working copy or another revision. */
 export function openDiff(path: string, left = 'HEAD', right = 'working', title?: string): void {
   useEditors.getState().openDiff({ path, left, right, title });
+}
+
+// ---------------------------------------------------------------- merge / rebase / cherry-pick in progress
+
+const OP_LABEL: Record<string, string> = { merge: 'Merge', rebase: 'Rebase', 'cherry-pick': 'Cherry-pick', revert: 'Revert' };
+export const operationLabel = (op: string) => OP_LABEL[op] ?? op;
+
+/** Continue, abort or skip the stopped merge / rebase / cherry-pick / revert. */
+export async function operationAction(action: 'continue' | 'abort' | 'skip'): Promise<void> {
+  const st = useGit.getState().status;
+  const opName = st?.operation ? operationLabel(st.operation) : 'Operation';
+  if (action === 'continue' && st?.files.some((f) => f.conflicted)) {
+    toast('warning', 'Resolve the conflicts first', `${st.files.filter((f) => f.conflicted).length} files still have conflicts.`);
+    return;
+  }
+  if (action === 'abort' && (await askConfirm({ title: `Abort ${opName.toLowerCase()}`, message: `Abort the ${opName.toLowerCase()} and go back to where it started?`, okLabel: 'Abort', danger: true })) !== 'ok') return;
+  await useEditors.getState().saveAll();
+  await op(`${opName} ${action}`, async () => {
+    const r = await api.post<{ message: string }>('/git/operation', { action });
+    toast('info', r.message, undefined, 4000);
+  });
+}
+
+export const acceptSide = (paths: string[], side: 'ours' | 'theirs') => op(side === 'ours' ? 'Accept yours' : 'Accept theirs', () => api.post('/git/acceptSide', { paths, side }));
+
+/** Opens the three-way merge tool for a conflicted file. */
+export function openMerge(path: string): void {
+  useEditors.getState().openMerge(path);
+}
+
+// ---------------------------------------------------------------- commits from the log
+
+const afterOp = (label: string) => {
+  const opName = useGit.getState().status?.operation;
+  if (opName) toast('warning', `${label} stopped`, 'There are conflicts: resolve them, then continue (Commit window).', 8000);
+};
+
+export async function cherryPick(hash: string, subject: string): Promise<void> {
+  await op('Cherry-pick', () => api.post('/git/cherryPick', { hash }), `Cherry-picked "${subject}"`);
+  afterOp('Cherry-pick');
+}
+
+export async function revertCommit(hash: string, subject: string): Promise<void> {
+  if ((await askConfirm({ title: 'Revert commit', message: `Create a new commit that undoes "${subject}"?`, okLabel: 'Revert' })) !== 'ok') return;
+  await op('Revert', () => api.post('/git/revertCommit', { hash }), `Reverted "${subject}"`);
+  afterOp('Revert');
+}
+
+export async function resetTo(hash: string, mode: 'soft' | 'mixed' | 'hard' | 'keep'): Promise<void> {
+  const what: Record<string, string> = {
+    soft: 'Soft: the changes of the later commits stay staged.',
+    mixed: 'Mixed: the changes of the later commits stay in the working tree, unstaged.',
+    hard: 'Hard: the later commits AND all uncommitted changes are thrown away.',
+    keep: 'Keep: the later commits are thrown away, uncommitted changes are kept.',
+  };
+  if ((await askConfirm({ title: `Reset ${useGit.getState().status?.branch ?? 'HEAD'} to ${hash.slice(0, 8)}`, message: what[mode], okLabel: 'Reset', danger: mode === 'hard' || mode === 'keep' })) !== 'ok') return;
+  await op('Reset', () => api.post('/git/reset', { hash, mode }), `Reset to ${hash.slice(0, 8)}`);
+}
+
+export const checkoutRevision = (hash: string) => op('Checkout', () => api.post('/git/checkoutRevision', { hash }), `Checked out ${hash.slice(0, 8)} (detached HEAD)`);
+
+export async function branchAt(hash: string): Promise<void> {
+  const name = await askText({ title: 'New branch', label: `At ${hash.slice(0, 8)}`, placeholder: 'feature/my-change', okLabel: 'Create and checkout', validate: (v) => (/^[^\s~^:?*[\\]+$/.test(v) && !v.startsWith('-') ? null : 'Not a valid branch name') });
+  if (name) await op('New branch', () => api.post('/git/branchAt', { hash, name, checkout: true }), `Switched to new branch ${name}`);
+}
+
+// ---------------------------------------------------------------- stash and shelf
+
+export async function stashChanges(paths?: string[]): Promise<void> {
+  const message = await askText({ title: 'Stash changes', label: paths?.length ? `${paths.length} selected file(s); untracked ones included` : 'All changes, untracked files included', placeholder: 'Message (optional)', okLabel: 'Stash' });
+  if (message === null) return;
+  await useEditors.getState().saveAll();
+  await op('Stash', () => api.post('/git/stash', { message, includeUntracked: true, paths }), 'Changes stashed');
+}
+
+export async function stashAction(ref: string, action: 'apply' | 'pop' | 'drop'): Promise<void> {
+  if (action === 'drop' && (await askConfirm({ title: 'Drop stash', message: `Delete ${ref}? This cannot be undone.`, okLabel: 'Drop', danger: true })) !== 'ok') return;
+  await op(`Stash ${action}`, () => api.post('/git/stash/action', { ref, action }), action === 'drop' ? `Dropped ${ref}` : `Applied ${ref}`);
+}
+
+export async function shelveChanges(paths: string[]): Promise<void> {
+  if (paths.length === 0) {
+    toast('info', 'Check the files to shelve');
+    return;
+  }
+  const name = await askText({ title: 'Shelve changes', label: `${paths.length} file(s); the changes are saved aside and rolled back`, value: '', placeholder: 'Shelf name', okLabel: 'Shelve' });
+  if (name === null) return;
+  await useEditors.getState().saveAll();
+  await op('Shelve', () => api.post('/git/shelve', { name, paths, keep: false }), 'Changes shelved');
+}
+
+export const unshelve = (id: string, remove = true) => op('Unshelve', () => api.post('/git/unshelve', { id, remove }), 'Changes unshelved');
+
+export async function deleteShelf(id: string, name: string): Promise<void> {
+  if ((await askConfirm({ title: 'Delete shelf', message: `Delete "${name}"? Its changes are lost.`, okLabel: 'Delete', danger: true })) !== 'ok') return;
+  await op('Delete shelf', () => api.post('/git/shelf/delete', { id }));
 }

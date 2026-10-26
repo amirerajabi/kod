@@ -97,6 +97,7 @@ export function attachGitDecorations(ed: monaco.editor.IStandaloneCodeEditor): (
         range: new monaco.Range(line, max, line, max),
         options: {
           after: { content: uncommitted ? '      You · Not committed yet' : `      ${b.author}, ${timeAgo(b.time)} • ${b.summary.length > 60 ? `${b.summary.slice(0, 59)}…` : b.summary}`, inlineClassName: 'kod-inline-blame' },
+          showIfCollapsed: true, // an empty range draws its injected text only with this
           hoverMessage: uncommitted ? undefined : { value: `**${b.summary}**\n\n${b.author} · ${new Date(b.time * 1000).toLocaleString()} · \`${b.hash.slice(0, 8)}\`` },
         },
       },
@@ -159,6 +160,7 @@ export function attachGitDecorations(ed: monaco.editor.IStandaloneCodeEditor): (
             range: new monaco.Range(l.line, 1, l.line, 1),
             options: {
               before: { content: `${label}  `, inlineClassName: uncommitted ? 'kod-blame kod-blame-new' : 'kod-blame' },
+              showIfCollapsed: true,
               hoverMessage: uncommitted ? undefined : { value: `**${l.hash.slice(0, 8)}** ${l.author}, ${fmt(l.time)}\n\n${l.summary}` },
             },
           };

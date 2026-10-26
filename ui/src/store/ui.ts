@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import { load, save } from '../lib/storage';
 
-export type DockPanel = 'explorer' | 'commit' | 'search' | 'nuget' | 'structure';
-export type BottomTab = 'run' | 'debug' | 'build' | 'tests' | 'git' | 'nuget' | 'problems' | 'inspections' | 'usages' | 'hierarchy' | 'terminal';
+export type DockPanel = 'explorer' | 'commit' | 'search' | 'nuget' | 'structure' | 'database';
+export type BottomTab = 'run' | 'debug' | 'build' | 'tests' | 'git' | 'nuget' | 'problems' | 'inspections' | 'usages' | 'hierarchy' | 'todo' | 'bookmarks' | 'services' | 'database' | 'terminal';
 export type PaletteMode = 'files' | 'commands' | 'symbols' | 'line' | 'recentFiles' | 'recentPlaces';
 
 export interface Toast {

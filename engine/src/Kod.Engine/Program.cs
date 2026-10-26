@@ -56,6 +56,7 @@ services.AddHttpClient("nuget", c =>
 services.AddSingleton(options);
 services.AddSingleton<EventHub>();
 services.AddSingleton<WorkspaceService>();
+services.AddSingleton<LocalHistoryService>();
 services.AddSingleton<FileService>();
 services.AddSingleton<MetadataViews>();
 services.AddSingleton<IntelService>();
@@ -64,7 +65,9 @@ services.AddSingleton<CodeActionService>();
 services.AddSingleton<RefactoringService>();
 services.AddSingleton<ProcessService>();
 services.AddSingleton<NugetService>();
+services.AddSingleton<Kod.Engine.Database.DatabaseService>();
 services.AddSingleton<DebugAdapter>();
+services.AddSingleton<Kod.Engine.Docker.DockerService>();
 services.AddSingleton<DebugService>();
 services.AddSingleton<Kod.Engine.Git.GitService>();
 services.AddSingleton<Kod.Engine.Testing.TestService>();

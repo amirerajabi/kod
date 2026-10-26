@@ -1835,3 +1835,342 @@ button.sb-item:hover {
   white-space: nowrap;
   font-size: var(--text-xs);
 }
+
+.form-ok {
+  color: var(--success);
+  font-size: var(--text-sm);
+  margin-top: var(--space-2);
+}
+.result-item .hier-go {
+  margin-left: auto;
+  opacity: 0;
+}
+.result-item:hover .hier-go {
+  opacity: 1;
+}
+
+/* ---- Local History */
+.history-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  background: var(--ed-bg);
+}
+.history-list {
+  width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+.history-diff {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+.history-label {
+  margin-left: auto;
+  font-size: var(--text-xs);
+  white-space: nowrap;
+}
+.result-item .history-revert {
+  opacity: 0;
+}
+.result-item:hover .history-revert,
+.result-item.selected .history-revert {
+  opacity: 1;
+}
+
+/* ---- bookmarks and TODO */
+.bm-line {
+  margin-left: 2px;
+  width: 14px !important;
+  border-radius: 3px;
+  background: #4a90d9;
+  color: #fff;
+  font: 600 9px/16px var(--font-mono);
+  text-align: center;
+}
+.bm-line.bm-anon::after {
+  content: '✓';
+}
+.bm-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: #4a90d9;
+  color: #fff;
+  font: 600 10px var(--font-mono);
+}
+.todo-kind {
+  font: 600 10px var(--font-mono);
+  padding: 0 4px;
+  border-radius: 3px;
+  background: var(--info-soft);
+  color: var(--info);
+}
+.todo-fixme,
+.todo-bug {
+  background: var(--danger-soft);
+  color: var(--danger-text);
+}
+.todo-hack,
+.todo-xxx {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+/* ---- Git: operation bar, sub-tabs, hunks, patches, merge */
+.git-op-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+.subtabs {
+  display: flex;
+  gap: 2px;
+  padding: 2px 6px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.subtab {
+  padding: 4px 10px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+.subtab.active {
+  color: var(--fg);
+  border-bottom-color: var(--accent);
+}
+.hunk-list {
+  padding: 2px 0 4px 34px;
+}
+.hunk {
+  margin: 2px 6px 4px 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  overflow: hidden;
+  font: var(--text-xs) / 1.45 var(--font-mono);
+}
+.hunk-head {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 1px 4px;
+  background: var(--bg-sunken);
+  color: var(--fg-muted);
+}
+.hunk-line {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 4px;
+  white-space: pre;
+  overflow: hidden;
+}
+.hunk-line input {
+  margin: 0;
+  transform: scale(0.85);
+}
+.hunk-line.ctx {
+  padding-left: 22px;
+  color: var(--fg-muted);
+}
+.hunk-line.add {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.hunk-line.del {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.patch-view {
+  margin: 0;
+  padding: 6px 8px;
+  height: 100%;
+  overflow: auto;
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}
+.patch-add {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+.patch-del {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+.patch-hunk {
+  color: var(--info);
+}
+.patch-file {
+  font-weight: 600;
+}
+.sig-table tr.dropped td {
+  opacity: 0.55;
+}
+.merge-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--ed-bg);
+}
+.merge-heads,
+.merge-panes {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.merge-heads span {
+  padding: 3px 8px;
+  font-size: var(--text-xs);
+  color: var(--fg-muted);
+  border-bottom: 1px solid var(--border-subtle);
+}
+.merge-panes {
+  flex: 1;
+  min-height: 0;
+}
+.merge-pane {
+  min-width: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+.merge-ours {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+}
+.merge-theirs {
+  background: color-mix(in srgb, var(--info) 14%, transparent);
+}
+
+/* ---- Database */
+.sql-bar {
+  gap: 8px;
+}
+.db-col-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin: 0 4px;
+  border-radius: 50%;
+  background: var(--fg-muted);
+}
+.db-results {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.db-grid {
+  border-collapse: collapse;
+  font: var(--text-sm) / 1.4 var(--font-mono);
+}
+.db-grid th,
+.db-grid td {
+  max-width: 360px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-subtle);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.db-grid th {
+  position: sticky;
+  top: 0;
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
+.db-grid .db-type {
+  margin-left: 6px;
+  font-weight: 400;
+  color: var(--fg-muted);
+  font-size: var(--text-xs);
+}
+.db-grid .rownum {
+  color: var(--fg-muted);
+  text-align: right;
+  background: var(--bg-sunken);
+}
+.db-grid td.null {
+  color: var(--fg-muted);
+  font-style: italic;
+}
+.db-grid tbody tr:hover td {
+  background: var(--bg-hover);
+}
+.db-error {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 6px 8px;
+  color: var(--danger-text);
+  background: var(--danger-soft);
+  cursor: pointer;
+}
+.db-messages {
+  padding: 6px 8px;
+  color: var(--fg-muted);
+  font: var(--text-xs) / 1.5 var(--font-mono);
+}
+
+/* ---- Services (Docker) */
+.svc-row .svc-actions,
+.tree-row .svc-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+.svc-row .svc-actions .icon-btn {
+  opacity: 0;
+}
+.svc-row:hover .svc-actions .icon-btn {
+  opacity: 1;
+}
+.svc-ports {
+  font-family: var(--font-mono);
+}
+.svc-running {
+  color: var(--success);
+}
+.svc-paused {
+  color: var(--warning);
+}
+.svc-stopped {
+  color: var(--fg-muted);
+}
+.svc-none {
+  color: var(--border);
+}
+
+/* tab strips with many tool windows: they scroll, and when space is short only the active tab keeps its label */
+.dock-tabs,
+.bottom-tabs {
+  container-type: inline-size;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dock-tabs::-webkit-scrollbar,
+.bottom-tabs::-webkit-scrollbar {
+  display: none;
+}
+.dock-tabs .dock-tab,
+.bottom-tabs .dock-tab {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+@container (max-width: 420px) {
+  .dock-tab:not(.active) > span {
+    display: none;
+  }
+}
+@container (max-width: 1250px) {
+  .bottom-tabs .dock-tab:not(.active) > span:not(.badge) {
+    display: none;
+  }
+}

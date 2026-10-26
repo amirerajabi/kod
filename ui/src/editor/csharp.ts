@@ -23,6 +23,7 @@ import { toast } from '../store/ui';
 import { allEntries, ensureModel, ensureVirtualModel, entryOfModel, getEntry, pathOfModel, type ModelEntry } from './models';
 import { monaco } from './monaco';
 import { CSHARP_SNIPPETS } from './snippets';
+import { inCSharpString } from './sql';
 
 type Model = monaco.editor.ITextModel;
 const L = 'csharp';
@@ -135,7 +136,7 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
       const line = model.getLineContent(position.lineNumber);
       const word = model.getWordUntilPosition(position);
       const before = line.slice(0, word.startColumn - 1);
-      if (/[.\w]$/.test(before) || /^\s*\/\//.test(line)) return { suggestions: [] };
+      if (/[.\w]$/.test(before) || /^\s*\/\//.test(line) || inCSharpString(model, position)) return { suggestions: [] };
       const range = { startLineNumber: position.lineNumber, endLineNumber: position.lineNumber, startColumn: word.startColumn, endColumn: word.endColumn };
       return {
         suggestions: CSHARP_SNIPPETS.map((s) => ({

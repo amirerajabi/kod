@@ -7,7 +7,8 @@ namespace Kod.Engine.Git;
 
 public sealed record GitFileDto(string Path, string Rel, string Index, string WorkTree, string? OrigPath, bool Staged, bool Unstaged, bool Untracked, bool Conflicted);
 
-public sealed record GitStatusDto(bool IsRepo, string? Root, string? Branch, string? Upstream, int Ahead, int Behind, bool Detached, IReadOnlyList<GitFileDto> Files);
+/// <summary><see cref="Operation"/> is the merge, rebase, cherry-pick or revert in progress (it stopped for conflicts or an edit).</summary>
+public sealed record GitStatusDto(bool IsRepo, string? Root, string? Branch, string? Upstream, int Ahead, int Behind, bool Detached, IReadOnlyList<GitFileDto> Files, string? Operation = null);
 
 public sealed record GitBranchDto(string Name, string Hash, string? Upstream, bool Current, bool Remote);
 
@@ -26,7 +27,7 @@ public sealed record GitBlameLineDto(int Line, string Hash, string Author, long 
 /// revision (for diffs), staging, commit, branches, log, commit details and blame. Network operations (fetch, pull,
 /// push) run as processes from the UI so their output and credential prompts are visible.
 /// </summary>
-public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger<GitService> log)
+public sealed partial class GitService(WorkspaceService workspace, EventHub hub, ILogger<GitService> log)
 {
     private string? cachedFor;
     private string? cachedRoot;
@@ -35,7 +36,7 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
 
     private sealed record Result(int Code, string Out, string Err);
 
-    private static async Task<Result> RunAsync(string cwd, IEnumerable<string> args, CancellationToken ct, string? stdin = null, int timeoutMs = 30_000)
+    private static async Task<Result> RunAsync(string cwd, IEnumerable<string> args, CancellationToken ct, string? stdin = null, int timeoutMs = 30_000, IReadOnlyDictionary<string, string>? env = null)
     {
         var psi = new ProcessStartInfo("git")
         {
@@ -51,6 +52,8 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
         foreach (var a in args) psi.ArgumentList.Add(a);
         psi.Environment["GIT_TERMINAL_PROMPT"] = "0";
         psi.Environment["LC_ALL"] = "C";
+        if (env is not null)
+            foreach (var (k, v) in env) psi.Environment[k] = v;
         using var p = Process.Start(psi) ?? throw new InvalidOperationException("git is not installed (or not on PATH)");
         if (stdin is not null)
         {
@@ -162,7 +165,7 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
                 files.Add(new GitFileDto(Abs(repo, rel), rel, "?", "?", null, false, false, true, false));
             }
         }
-        return new GitStatusDto(true, repo, detached ? null : branch, upstream, ahead, behind, detached, files.OrderBy(f => f.Rel, StringComparer.OrdinalIgnoreCase).ToList());
+        return new GitStatusDto(true, repo, detached ? null : branch, upstream, ahead, behind, detached, files.OrderBy(f => f.Rel, StringComparer.OrdinalIgnoreCase).ToList(), await OperationAsync(repo, ct));
     }
 
     /// <summary>A file's content at a revision: "HEAD", ":" (the index), or a commit hash. Missing = empty.</summary>
@@ -210,13 +213,18 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
     }
 
     /// <summary>Commits the given files (all changes when none are given), like Rider's commit of the checked files.</summary>
-    public async Task<string> CommitAsync(string message, IReadOnlyList<string>? paths, bool amend, CancellationToken ct)
+    public async Task<string> CommitAsync(string message, IReadOnlyList<string>? paths, bool amend, IReadOnlyList<PartialFileDto>? partial, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(message) && !amend) throw new ArgumentException("Write a commit message");
         var repo = await RepoAsync(ct);
         var args = new List<string> { "commit", "-F", "-" };
         if (amend) args.Add("--amend");
-        if (paths is { Count: > 0 })
+        if (partial is { Count: > 0 })
+        {
+            // some files commit only chosen hunks / lines: build the index from exactly the selection, then commit it
+            await StagePartialAsync(repo, paths ?? [], partial, ct);
+        }
+        else if (paths is { Count: > 0 })
         {
             var rels = paths.Select(p => Rel(repo, p)).ToList();
             await RunOkAsync(repo, ["add", "-A", "--", .. rels], ct);
@@ -334,6 +342,12 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
     public async Task<IReadOnlyList<GitBlameLineDto>> BlameAsync(string path, string? text, CancellationToken ct)
     {
         var repo = await RepoAsync(ct);
+        // no commit yet: git blame fails ("no such ref: HEAD"), but every line is simply not committed yet
+        if ((await RunAsync(repo, ["rev-parse", "--verify", "HEAD"], ct)).Code != 0)
+        {
+            var count = (text ?? await File.ReadAllTextAsync(path, ct)).Split('\n').Length;
+            return Enumerable.Range(1, count).Select(n => new GitBlameLineDto(n, new string('0', 40), "", 0, "")).ToList();
+        }
         // --contents - blames the editor's text, so unsaved lines show as "Not committed yet"
         var args = new List<string> { "blame", "--porcelain" };
         if (text is not null) args.AddRange(["--contents", "-"]);

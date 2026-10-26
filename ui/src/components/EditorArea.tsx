@@ -4,6 +4,8 @@ import { copyText } from '../app/actions';
 import { keyLabel } from '../app/commands';
 import { CodeEditor } from '../editor/CodeEditor';
 import { DiffView } from '../editor/DiffView';
+import { HistoryView } from '../editor/HistoryView';
+import { MergeView } from '../editor/MergeView';
 import { changeKind, statusOf, useGit } from '../store/git';
 import { basename, dirname, norm, samePath } from '../lib/paths';
 import { platform } from '../platform';
@@ -17,12 +19,16 @@ import { revealInExplorer } from './Explorer';
 export function EditorArea() {
   const tabs = useEditors((s) => s.tabs);
   const diff = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'diff')?.diff);
+  const history = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'history')?.diff?.path);
+  const merge = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'merge')?.diff?.path);
   return (
     <section className="workspace" aria-label="Editor">
       {tabs.length > 0 && <TabBar />}
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <CodeEditor />
         {diff && <DiffView key={`${diff.left}:${diff.right}:${diff.path}`} spec={diff} />}
+        {history && <HistoryView key={history} path={history} />}
+        {merge && <MergeView key={merge} path={merge} />}
       </div>
       {tabs.length === 0 && <EditorEmpty />}
     </section>
@@ -59,6 +65,7 @@ function TabBar() {
         ? ([
             { label: 'Keep Open', disabled: !t.preview, run: () => st.pin(t.path) },
             { label: 'Copy Path', run: () => void copyText(t.path) },
+            { label: 'Show Local History', run: () => st.openHistory(t.path) },
             { label: 'Select in Explorer', run: () => { useUi.getState().showDock('explorer'); void revealInExplorer(t.path); } },
             ...(platform.kind === 'electron' ? [{ label: 'Reveal in File Manager', run: () => platform.reveal(t.path) } as MenuItem] : []),
           ] as MenuItem[])
@@ -98,7 +105,7 @@ function TabBar() {
               }}
               onContextMenu={(e) => showContextMenu(e, menuFor(t, i))}
             >
-              <FileIcon path={t.kind === 'metadata' ? 'x.cs' : t.kind === 'diff' ? (t.diff?.path ?? t.path) : t.path} size={14} />
+              <FileIcon path={t.kind === 'metadata' ? 'x.cs' : t.kind === 'diff' || t.kind === 'history' || t.kind === 'merge' ? (t.diff?.path ?? t.path) : t.path} size={14} />
               <span className={`tab-title${t.kind === 'file' && statusOf(t.path) ? ` git-${changeKind(statusOf(t.path)!)}` : ''}`}>{t.title}</span>
               {dupes.has(t.title) && t.kind === 'file' && <span className="tab-dir">{basename(dirname(t.path))}</span>}
               {errors && <span className="tab-errors" title="Has errors" />}

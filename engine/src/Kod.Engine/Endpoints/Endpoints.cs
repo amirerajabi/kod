@@ -10,7 +10,7 @@ using Kod.Engine.Workspace;
 namespace Kod.Engine.Endpoints;
 
 public sealed record PathBody(string Path);
-public sealed record WriteBody(string Path, string Text);
+public sealed record WriteBody(string Path, string Text, string? Label = null);
 public sealed record CreateBody(string Path, bool IsDir, string? Text);
 public sealed record RenameBody(string From, string To);
 public sealed record InputBody(string Text);
@@ -21,7 +21,16 @@ public sealed record FrameBody(int FrameId);
 public sealed record VariablesBody(int Reference);
 public sealed record EvaluateBody(string Expression, int? FrameId, string? Context);
 public sealed record PathsBody(List<string> Paths);
-public sealed record CommitBody(string Message, List<string>? Paths, bool Amend);
+public sealed record CommitBody(string Message, List<string>? Paths, bool Amend, List<PartialFileDto>? Partial = null);
+public sealed record GitActionBody(string Action);
+public sealed record ResolveBody(string Path, string Text);
+public sealed record AcceptSideBody(List<string> Paths, string Side);
+public sealed record HashBody(string Hash, string? Mode = null, string? Name = null, bool Checkout = false);
+public sealed record RebaseBody(string Hash, List<RebaseStepDto> Steps);
+public sealed record StashBody(string? Message, bool IncludeUntracked, List<string>? Paths);
+public sealed record StashActionBody(string Ref, string Action);
+public sealed record ShelveBody(string Name, List<string> Paths, bool Keep);
+public sealed record ShelfBody(string Id, bool Remove = true);
 public sealed record CheckoutBody(string Name, bool Create);
 public sealed record BlameBody(string Path, string? Text);
 public sealed record LatestBody(List<string> Ids, bool Prerelease);
@@ -57,7 +66,7 @@ public static class Endpoints
         api.MapGet("/fs/read", (string path, FileService fs) => fs.Read(path));
         api.MapPost("/fs/write", (WriteBody b, FileService fs, WorkspaceService ws) =>
         {
-            fs.Write(b.Path, b.Text);
+            fs.Write(b.Path, b.Text, string.IsNullOrWhiteSpace(b.Label) ? "Saved" : b.Label);
             if (b.Path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)) ws.GetDocument(b.Path, b.Text);
             return Results.NoContent();
         });
@@ -65,6 +74,17 @@ public static class Endpoints
         api.MapPost("/fs/rename", (RenameBody b, FileService fs) => new { path = fs.Rename(b.From, b.To) });
         api.MapPost("/fs/delete", (PathBody b, FileService fs) => { fs.Delete(b.Path); return Results.NoContent(); });
         api.MapPost("/fs/search", (SearchRequest b, FileService fs, CancellationToken ct) => fs.Search(b, ct));
+        api.MapGet("/fs/todos", (FileService fs, CancellationToken ct) => fs.Todos(ct));
+
+        // ---- local history
+        api.MapGet("/history/list", (string path, LocalHistoryService h) => h.List(path));
+        api.MapGet("/history/text", (string path, string id, LocalHistoryService h) => new { text = h.Text(path, id) });
+        api.MapGet("/history/under", (string path, LocalHistoryService h) => h.Under(path));
+        api.MapPost("/history/label", (HistoryLabelBody b, LocalHistoryService h) =>
+        {
+            h.Record(b.Path, b.Text ?? File.ReadAllText(b.Path), b.Label.Trim().Length > 0 ? b.Label.Trim() : "Label");
+            return Results.NoContent();
+        });
 
         // ---- C# intelligence
         var intel = api.MapGroup("/intel");
@@ -159,7 +179,28 @@ public static class Endpoints
         git.MapPost("/stage", async (PathsBody b, GitService g, CancellationToken ct) => { await g.StageAsync(b.Paths, ct); return Results.NoContent(); });
         git.MapPost("/unstage", async (PathsBody b, GitService g, CancellationToken ct) => { await g.UnstageAsync(b.Paths, ct); return Results.NoContent(); });
         git.MapPost("/discard", async (PathsBody b, GitService g, CancellationToken ct) => { await g.DiscardAsync(b.Paths, ct); return Results.NoContent(); });
-        git.MapPost("/commit", async (CommitBody b, GitService g, CancellationToken ct) => new { hash = await g.CommitAsync(b.Message, b.Paths, b.Amend, ct) });
+        git.MapPost("/commit", async (CommitBody b, GitService g, CancellationToken ct) => new { hash = await g.CommitAsync(b.Message, b.Paths, b.Amend, b.Partial, ct) });
+        git.MapPost("/operation", async (GitActionBody b, GitService g, CancellationToken ct) => new { message = await g.OperationActionAsync(b.Action, ct) });
+        git.MapGet("/conflict", (string path, GitService g, CancellationToken ct) => g.ConflictAsync(path, ct));
+        git.MapPost("/resolve", async (ResolveBody b, GitService g, CancellationToken ct) => { await g.ResolveAsync(b.Path, b.Text, ct); return Results.NoContent(); });
+        git.MapPost("/acceptSide", async (AcceptSideBody b, GitService g, CancellationToken ct) => { await g.AcceptSideAsync(b.Paths, b.Side, ct); return Results.NoContent(); });
+        git.MapPost("/cherryPick", async (HashBody b, GitService g, CancellationToken ct) => { await g.CherryPickAsync(b.Hash, ct); return Results.NoContent(); });
+        git.MapPost("/revertCommit", async (HashBody b, GitService g, CancellationToken ct) => { await g.RevertCommitAsync(b.Hash, ct); return Results.NoContent(); });
+        git.MapPost("/reset", async (HashBody b, GitService g, CancellationToken ct) => { await g.ResetAsync(b.Hash, b.Mode ?? "mixed", ct); return Results.NoContent(); });
+        git.MapPost("/checkoutRevision", async (HashBody b, GitService g, CancellationToken ct) => { await g.CheckoutRevisionAsync(b.Hash, ct); return Results.NoContent(); });
+        git.MapPost("/branchAt", async (HashBody b, GitService g, CancellationToken ct) => { await g.BranchAtAsync(b.Name ?? "", b.Hash, b.Checkout, ct); return Results.NoContent(); });
+        git.MapGet("/rebase/plan", (string hash, GitService g, CancellationToken ct) => g.RebasePlanAsync(hash, ct));
+        git.MapPost("/rebase", async (RebaseBody b, GitService g, CancellationToken ct) => new { message = await g.RebaseAsync(b.Hash, b.Steps, ct) });
+        git.MapGet("/stashes", (GitService g, CancellationToken ct) => g.StashesAsync(ct));
+        git.MapPost("/stash", async (StashBody b, GitService g, CancellationToken ct) => { await g.StashAsync(b.Message, b.IncludeUntracked, b.Paths, ct); return Results.NoContent(); });
+        git.MapPost("/stash/action", async (StashActionBody b, GitService g, CancellationToken ct) => { await g.StashActionAsync(b.Ref, b.Action, ct); return Results.NoContent(); });
+        git.MapGet("/stash/files", (string @ref, GitService g, CancellationToken ct) => g.StashFilesAsync(@ref, ct));
+        git.MapGet("/shelves", (GitService g, CancellationToken ct) => g.ShelvesAsync(ct));
+        git.MapPost("/shelve", (ShelveBody b, GitService g, CancellationToken ct) => g.ShelveAsync(b.Name, b.Paths, b.Keep, ct));
+        git.MapPost("/unshelve", async (ShelfBody b, GitService g, CancellationToken ct) => { await g.UnshelveAsync(b.Id, b.Remove, ct); return Results.NoContent(); });
+        git.MapPost("/shelf/delete", async (ShelfBody b, GitService g, CancellationToken ct) => { await g.DeleteShelfAsync(b.Id, ct); return Results.NoContent(); });
+        git.MapGet("/shelf/patch", async (string id, GitService g, CancellationToken ct) => new { text = await g.ShelfPatchAsync(id, ct) });
+        git.MapGet("/hunks", (string path, GitService g, CancellationToken ct) => g.HunksAsync(path, ct));
         git.MapGet("/lastMessage", async (GitService g, CancellationToken ct) => new { message = await g.LastMessageAsync(ct) });
         git.MapGet("/branches", (GitService g, CancellationToken ct) => g.BranchesAsync(ct));
         git.MapPost("/checkout", async (CheckoutBody b, GitService g, CancellationToken ct) => { await g.CheckoutAsync(b.Name, b.Create, ct); return Results.NoContent(); });
@@ -195,6 +236,22 @@ public static class Endpoints
         api.MapGet("/nuget/versions", (string id, string? source, NugetService n, CancellationToken ct) => n.VersionsAsync(id, source, ct));
         api.MapGet("/nuget/details", (string id, string? version, string? source, NugetService n, CancellationToken ct) => n.DetailsAsync(id, version, source, ct));
         api.MapPost("/nuget/latest", (LatestBody b, NugetService n, CancellationToken ct) => n.LatestAsync(b.Ids, b.Prerelease, ct));
+
+        // ---- Docker (the Services window)
+        var dk = api.MapGroup("/docker");
+        dk.MapGet("/info", (Kod.Engine.Docker.DockerService d, CancellationToken ct) => d.InfoAsync(ct));
+        dk.MapGet("/containers", (Kod.Engine.Docker.DockerService d, CancellationToken ct) => d.ContainersAsync(ct));
+        dk.MapGet("/images", (Kod.Engine.Docker.DockerService d, CancellationToken ct) => d.ImagesAsync(ct));
+        dk.MapGet("/compose", (Kod.Engine.Docker.DockerService d) => d.ComposeFiles());
+        dk.MapGet("/project", (string path, Kod.Engine.Docker.DockerService d) => d.Project(path));
+
+        // ---- databases
+        var db = api.MapGroup("/db");
+        db.MapPost("/test", (Kod.Engine.Database.DbConnectionDto c, Kod.Engine.Database.DatabaseService d, CancellationToken ct) => d.TestAsync(c, ct));
+        db.MapPost("/schema", (Kod.Engine.Database.DbConnectionDto c, Kod.Engine.Database.DatabaseService d, CancellationToken ct) => d.SchemaAsync(c, ct));
+        db.MapPost("/query", (Kod.Engine.Database.DbQueryRequest r, Kod.Engine.Database.DatabaseService d, CancellationToken ct) => d.QueryAsync(r, ct));
+        db.MapPost("/cancel", (IdBody b, Kod.Engine.Database.DatabaseService d) => { d.Cancel(b.Id); return Results.NoContent(); });
+        db.MapGet("/discover", (Kod.Engine.Database.DatabaseService d) => d.Discover());
 
         // ---- AI assistant (events: ai.delta, ai.thinking, ai.tool, ai.notice, ai.done)
         var ai = api.MapGroup("/ai");

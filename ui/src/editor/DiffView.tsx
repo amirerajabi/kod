@@ -7,6 +7,8 @@ import { getEntry } from './models';
 import { languageOf, monaco } from './monaco';
 
 async function sideText(path: string, rev: string): Promise<string> {
+  if (rev.startsWith('history:')) return (await api.get<{ text: string }>('/history/text', { path, id: rev.slice(8) })).text;
+  if (rev === 'empty') return '';
   if (rev === 'working') {
     const open = getEntry(path);
     if (open) return open.model.getValue();
