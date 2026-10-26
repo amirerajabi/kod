@@ -1,11 +1,10 @@
-import { FolderTree, GitCommitHorizontal, ListTree, Package, Search } from 'lucide-react';
+import { FolderTree, GitCommitHorizontal, ListTree, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { shortcutOf } from '../app/commands';
 import { DOCK_MAX, DOCK_MIN, useUi, type DockPanel } from '../store/ui';
 import { Splitter } from './common/Splitter';
 import { CommitPanel } from './CommitPanel';
 import { Explorer } from './Explorer';
-import { NugetPanel } from './NugetPanel';
 import { SearchPanel } from './SearchPanel';
 import { StructurePanel } from './StructurePanel';
 
@@ -14,14 +13,14 @@ const TABS: { id: DockPanel; label: string; Icon: typeof FolderTree; command: st
   { id: 'commit', label: 'Commit', Icon: GitCommitHorizontal, command: 'view.commit' },
   { id: 'structure', label: 'Structure', Icon: ListTree, command: 'view.structure' },
   { id: 'search', label: 'Search', Icon: Search, command: 'nav.findInFiles' },
-  { id: 'nuget', label: 'NuGet', Icon: Package, command: 'view.nuget' },
 ];
 
 /** Left dock: Explorer | Structure | Search | NuGet, tabbed and resizable (the Rowlit dock). */
 export function Dock() {
   const visible = useUi((s) => s.dockVisible);
   const width = useUi((s) => s.dockWidth);
-  const dock = useUi((s) => s.dock);
+  // the NuGet panel moved to the tool windows: an old saved layout falls back to the explorer
+  const dock = useUi((s) => (s.dock === 'nuget' ? 'explorer' : s.dock));
   const ref = useRef<HTMLElement>(null);
   const [start, setStart] = useState(width);
   if (!visible) return null;
@@ -44,7 +43,6 @@ export function Dock() {
           {dock === 'commit' && <CommitPanel />}
           {dock === 'structure' && <StructurePanel />}
           {dock === 'search' && <SearchPanel />}
-          {dock === 'nuget' && <NugetPanel />}
         </div>
       </aside>
       <Splitter

@@ -15,7 +15,7 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Intel/      Roslyn: completion, hover, signature help, diagnostics, navigation, usages, rename, format,
               semantic tokens, outline, code fixes and refactorings, metadata views
   Processes/  dotnet build / run / test / new / add package and the terminal shell, streamed over /ws
-  Nuget/      nuget.org search, PackageReference listing
+  Nuget/      v3 feed search, registration details, versions, sources, PackageReferences (incl. central versions)
 ```
 
 ## Features
@@ -71,7 +71,11 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - **Explorer** with new class / interface / record / enum / file / folder, rename, delete (Recycle Bin on
   Windows), copy path, reveal, open in terminal, run/build/test project, set run configuration.
 - **Find in files** with regex, case, whole word, include globs and replace all.
-- **NuGet** panel: search nuget.org, install a version, update, remove (via `dotnet add/remove package`).
+- **NuGet** tool window (Alt+Shift+7, like Rider's): Browse / Installed / Updates across the solution, search on
+  every enabled v3 feed (or one), prerelease toggle; package details (versions, description, license, project link,
+  downloads, dependencies per framework, deprecation and vulnerability warnings); every project with its installed
+  version and install / upgrade / remove buttons, "Install to all", "Update all"; central package management
+  versions; a Sources tab (enable / disable feeds) and Restore.
 - **Terminal** (cmd / zsh / bash) in the tool window.
 - **Search Everywhere** (Shift Shift): files, `>` actions, `#` symbols, `:` line.
 - Light / dark / system theme, settings (font, ligatures, tabs, wrap, minimap, auto save, format on save, …),

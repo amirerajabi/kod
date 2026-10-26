@@ -51,8 +51,8 @@ services.AddCors(c => c.AddDefaultPolicy(p => p
 services.AddHttpClient("nuget", c =>
 {
     c.Timeout = TimeSpan.FromSeconds(20);
-    c.DefaultRequestHeaders.UserAgent.ParseAdd("Kod/0.1");
-});
+    c.DefaultRequestHeaders.UserAgent.ParseAdd("Kod/0.3");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 services.AddSingleton(options);
 services.AddSingleton<EventHub>();
 services.AddSingleton<WorkspaceService>();
