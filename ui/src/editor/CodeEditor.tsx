@@ -10,6 +10,7 @@ import { useUsages } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { scheduleDiagnostics } from './csharp';
 import { attachDebugDecorations, toggleBreakpointAtCursor } from './debugEditor';
+import { attachGitDecorations } from './gitEditor';
 import { entryOfModel, getEntry } from './models';
 import { monaco } from './monaco';
 
@@ -112,6 +113,7 @@ export function CodeEditor() {
     ed.addCommand(monaco.KeyCode.F9, () => toggleBreakpointAtCursor(ed));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F8, () => toggleBreakpointAtCursor(ed));
     const detachDebug = attachDebugDecorations(ed);
+    const detachGit = attachGitDecorations(ed);
 
     ed.onDidChangeCursorSelection((e) => {
       const model = ed.getModel();
@@ -137,6 +139,7 @@ export function CodeEditor() {
 
     return () => {
       detachDebug();
+      detachGit();
       editorInstance = null;
       ed.dispose();
     };
@@ -216,7 +219,7 @@ export function CodeEditor() {
 
   return (
     <>
-      {tab && (
+      {tab && tab.kind !== 'diff' && (
         <div className="breadcrumbs" aria-label="Breadcrumbs">
           {rel.split(/[\\/]/).map((seg, i, arr) => (
             <span key={`p${i}`} className="crumb" style={{ cursor: 'default' }}>

@@ -8,6 +8,8 @@ import { useSettings } from '../store/settings';
 import { askConfirm, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { UpdateChip } from './UpdateChip';
+import { showBranchMenu } from './GitBranchMenu';
+import { useGit } from '../store/git';
 
 const LANG: Record<string, string> = { csharp: 'C#', xml: 'XML', json: 'JSON', markdown: 'Markdown', plaintext: 'Plain Text', razor: 'Razor', javascript: 'JavaScript', typescript: 'TypeScript' };
 
@@ -22,6 +24,7 @@ export function StatusBar() {
   const solution = useProblems((s) => s.solution);
   const procs = useProcs((s) => s.procs);
   const settings = useSettings((s) => s.settings);
+  const git = useGit((s) => s.status);
   const counts = useMemo(() => countProblems(allProblems({ live, build, solution })), [live, build, solution]);
   const running = Object.values(procs).filter((p) => p.info.exitCode == null && p.info.kind !== 'terminal');
   const entry = active ? getEntry(active) : undefined;
@@ -54,10 +57,17 @@ export function StatusBar() {
           <TriangleAlert /> {ws.warnings.length} load warning{ws.warnings.length === 1 ? '' : 's'}
         </button>
       )}
-      {ws.branch && (
-        <span className="sb-item" title="Git branch">
-          <GitBranch /> {ws.branch}
-        </span>
+      {(git?.isRepo || ws.branch) && (
+        <button className="sb-item" title="Git branches" onClick={(e) => void showBranchMenu(e.currentTarget, true)}>
+          <GitBranch /> {git?.branch ?? ws.branch ?? 'detached'}
+          {git && (git.ahead > 0 || git.behind > 0) && (
+            <span className="muted">
+              {git.ahead ? `↑${git.ahead}` : ''}
+              {git.behind ? `↓${git.behind}` : ''}
+            </span>
+          )}
+          {git && git.files.length > 0 && <span className="muted">· {git.files.length} changed</span>}
+        </button>
       )}
       {ws.root && (
         <button className="sb-item" title="Problems (Alt+6)" onClick={() => useUi.getState().showBottom('problems')}>

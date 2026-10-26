@@ -8,13 +8,25 @@ import { debugActive, startDebugging, step, stopDebugging, useDebug } from '../s
 import { isMac } from '../platform';
 import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
-import { dotnetBuild, dotnetRun, dotnetTest, runningOf, startTerminal, stopAll } from '../store/procs';
+import { dotnetBuild, dotnetRun, runningOf, startTerminal, stopAll } from '../store/procs';
 import { effectiveTheme, useSettings } from '../store/settings';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
 import { checkForUpdatesNow } from './updates';
+import { showBranchMenu } from '../components/GitBranchMenu';
+import { toggleBlame } from '../editor/gitEditor';
+import { gitFetch, gitPull, gitPush, initRepository, newBranch, openDiff, rollback } from '../store/git';
+import { runFailed, runTests, useTests } from '../store/tests';
+import { samePath } from '../lib/paths';
+
+function runCurrentFileTests(): void {
+  const f = currentFilePath();
+  const ids = f ? useTests.getState().projects.flatMap((p) => p.tests).filter((t) => samePath(t.path, f)).map((t) => t.id) : [];
+  if (ids.length) void runTests(ids);
+  else toast('info', 'No tests in this file');
+}
 
 export interface Command {
   id: string;
@@ -95,7 +107,23 @@ export const COMMANDS: Command[] = [
   { id: 'debug.clearBreakpoints', title: 'Remove All Breakpoints', category: 'Debug', run: () => useDebug.getState().clearAll() },
   { id: 'view.debug', title: 'Debug Window', category: 'View', keys: ['Alt+5'], run: () => useUi.getState().showBottom('debug'), global: true },
   { id: 'run.stopBuild', title: 'Cancel Build', category: 'Build', keys: ['Ctrl+Break'], run: () => stopAll('build'), global: true },
-  { id: 'run.tests', title: 'Run All Tests', category: 'Run', keys: ['Ctrl+U Ctrl+L'], run: needsRoot(() => dotnetTest()) },
+  { id: 'run.tests', title: 'Run All Tests', category: 'Run', keys: ['Ctrl+U Ctrl+L'], run: needsRoot(() => runTests()) },
+  { id: 'tests.runFailed', title: 'Run Failed Tests', category: 'Run', keys: ['Ctrl+U Ctrl+F'], run: needsRoot(() => runFailed()) },
+  { id: 'tests.runCurrent', title: 'Run Tests in This File', category: 'Run', keys: ['Ctrl+U Ctrl+R'], run: needsRoot(() => runCurrentFileTests()) },
+  { id: 'view.tests', title: 'Unit Tests', category: 'View', keys: ['Alt+8'], run: () => useUi.getState().showBottom('tests'), global: true },
+
+  // Git
+  { id: 'view.commit', title: 'Commit', category: 'Git', keys: ['Alt+0', 'Ctrl+K Ctrl+C'], run: () => useUi.getState().showDock('commit'), global: true },
+  { id: 'view.git', title: 'Git Log', category: 'Git', keys: ['Alt+9'], run: () => useUi.getState().showBottom('git'), global: true },
+  { id: 'git.push', title: 'Push…', category: 'Git', keys: ['Ctrl+Shift+K'], run: needsRoot(() => gitPush()), global: true },
+  { id: 'git.pull', title: 'Update Project (Pull)', category: 'Git', run: needsRoot(() => gitPull()) },
+  { id: 'git.fetch', title: 'Fetch', category: 'Git', run: needsRoot(() => gitFetch()) },
+  { id: 'git.newBranch', title: 'New Branch…', category: 'Git', run: needsRoot(() => newBranch()) },
+  { id: 'git.branches', title: 'Branches…', category: 'Git', keys: ['Ctrl+Shift+`'], run: needsRoot(() => { const el = document.querySelector<HTMLElement>('.statusbar button[title="Git branches"]'); if (el) void showBranchMenu(el, true); }), global: true },
+  { id: 'git.diff', title: 'Show Diff with HEAD', category: 'Git', run: () => { const f = currentFilePath(); if (f) openDiff(f); } },
+  { id: 'git.annotate', title: 'Annotate with Git Blame', category: 'Git', run: () => toggleBlame() },
+  { id: 'git.rollback', title: 'Rollback Changes in This File…', category: 'Git', run: () => { const f = currentFilePath(); if (f) void rollback([f]); } },
+  { id: 'git.init', title: 'Create Git Repository', category: 'Git', run: needsRoot(() => initRepository()) },
 
   // View
   { id: 'view.toggleDock', title: 'Toggle Side Panel', category: 'View', keys: ['Ctrl+Shift+F12'], run: () => useUi.getState().toggleDock(), global: true },

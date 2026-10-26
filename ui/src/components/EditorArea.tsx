@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { copyText } from '../app/actions';
 import { keyLabel } from '../app/commands';
 import { CodeEditor } from '../editor/CodeEditor';
+import { DiffView } from '../editor/DiffView';
+import { changeKind, statusOf, useGit } from '../store/git';
 import { basename, dirname, norm, samePath } from '../lib/paths';
 import { platform } from '../platform';
 import { useEditors, type Tab } from '../store/editors';
@@ -14,10 +16,14 @@ import { revealInExplorer } from './Explorer';
 
 export function EditorArea() {
   const tabs = useEditors((s) => s.tabs);
+  const diff = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'diff')?.diff);
   return (
     <section className="workspace" aria-label="Editor">
       {tabs.length > 0 && <TabBar />}
-      <CodeEditor />
+      <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <CodeEditor />
+        {diff && <DiffView key={`${diff.left}:${diff.right}:${diff.path}`} spec={diff} />}
+      </div>
       {tabs.length === 0 && <EditorEmpty />}
     </section>
   );
@@ -27,6 +33,7 @@ function TabBar() {
   const tabs = useEditors((s) => s.tabs);
   const active = useEditors((s) => s.active);
   const live = useProblems((s) => s.live);
+  useGit((s) => s.status); // tab titles take the file's Git colour
   const [drag, setDrag] = useState<number | null>(null);
   const scroll = useRef<HTMLDivElement>(null);
 
@@ -91,8 +98,8 @@ function TabBar() {
               }}
               onContextMenu={(e) => showContextMenu(e, menuFor(t, i))}
             >
-              <FileIcon path={t.kind === 'metadata' ? 'x.cs' : t.path} size={14} />
-              <span className="tab-title">{t.title}</span>
+              <FileIcon path={t.kind === 'metadata' ? 'x.cs' : t.kind === 'diff' ? (t.diff?.path ?? t.path) : t.path} size={14} />
+              <span className={`tab-title${t.kind === 'file' && statusOf(t.path) ? ` git-${changeKind(statusOf(t.path)!)}` : ''}`}>{t.title}</span>
               {dupes.has(t.title) && t.kind === 'file' && <span className="tab-dir">{basename(dirname(t.path))}</span>}
               {errors && <span className="tab-errors" title="Has errors" />}
               <button

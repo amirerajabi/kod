@@ -41,6 +41,17 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - Uses [netcoredbg](https://github.com/Samsung/netcoredbg) (MIT) over the Debug Adapter Protocol; Kod downloads it
   on first use (or set `KOD_NETCOREDBG`). ASP.NET Core apps get their launch profile URL and environment.
 
+**Git** (the git CLI, with your own config and credentials)
+- Commit window (Alt+0): changes with check boxes, message, Amend, Commit / Commit and Push, Rollback, Stage /
+  Unstage; diff tabs (side by side or unified); added / modified / deleted markers in the gutter while you type.
+- Annotate (blame), Git colours on file names, a branches popup (checkout, new, delete, pull, push, fetch) and a
+  Git log window (Alt+9) with commit details and per-file diffs.
+
+**Unit tests**
+- Test explorer (Alt+8) for xUnit, NUnit and MSTest, discovered by Roslyn: run all / failed / a namespace, class or
+  test, theory rows, failure message with a stack trace linked to the source, test output; "Run test" code lenses
+  with the last result in the editor.
+
 **Settings and updates**
 - Rowlit's settings dialog: searchable sections, app themes (Light, Paper, Solarized Light, IntelliJ Light, Dark,
   Midnight, Nord, Violet, Darcula; one light and one dark favourite for System mode) and code themes (Rider, Darcula,
@@ -131,4 +142,4 @@ On macOS, Ctrl is ⌘.
 
 ## Not (yet) in Kod
 
-A test explorer tree, Git UI beyond the branch name, and profilers.
+Profilers, debugging a single test, merge-conflict resolution UI, and interactive rebase.

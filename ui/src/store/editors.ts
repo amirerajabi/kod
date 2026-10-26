@@ -12,10 +12,19 @@ import { useWorkspace } from './workspace';
 export interface Tab {
   path: string;
   title: string;
-  kind: 'file' | 'metadata';
+  kind: 'file' | 'metadata' | 'diff';
   preview: boolean;
   dirty: boolean;
   readOnly: boolean;
+  /** Diff tabs: the file and the two sides (HEAD, ':' for the index, a commit hash, or 'working'). */
+  diff?: DiffSpec;
+}
+
+export interface DiffSpec {
+  path: string;
+  left: string;
+  right: string;
+  title?: string;
 }
 
 export interface Reveal {
@@ -33,6 +42,7 @@ interface EditorsState {
   reveal: Reveal | null;
   open(path: string, opts?: { line?: number; column?: number; range?: RangeDto; preview?: boolean; focus?: boolean }): Promise<void>;
   openMetadata(view: MetadataViewDto): void;
+  openDiff(spec: DiffSpec): void;
   activate(path: string): void;
   pin(path: string): void;
   close(path: string): Promise<boolean>;
@@ -105,6 +115,14 @@ export const useEditors = create<EditorsState>((set, get) => ({
     if (!get().tabs.some((t) => t.path === path))
       set((s) => ({ tabs: [...s.tabs, { path, title: view.title, kind: 'metadata', preview: false, dirty: false, readOnly: true }] }));
     set({ active: path, reveal });
+  },
+
+  openDiff: (spec) => {
+    const path = `kod-diff:${spec.left}:${spec.right}:${spec.path}`;
+    const side = (r: string) => (r === 'working' ? 'Working' : r === ':' ? 'Staged' : r === 'HEAD' ? 'HEAD' : r.slice(0, 7));
+    const title = spec.title ?? `${basename(spec.path)} (${side(spec.left)} ↔ ${side(spec.right)})`;
+    if (!get().tabs.some((t) => t.path === path)) set((s) => ({ tabs: [...s.tabs, { path, title, kind: 'diff', preview: false, dirty: false, readOnly: true, diff: spec }] }));
+    set({ active: path });
   },
 
   activate: (path) => set({ active: path }),
@@ -195,6 +213,7 @@ export const useEditors = create<EditorsState>((set, get) => ({
 }));
 
 function releaseModel(path: string): void {
+  if (path.startsWith('kod-diff:')) return;
   if (path.startsWith('kod-metadata:')) {
     disposeModel(path);
     return;

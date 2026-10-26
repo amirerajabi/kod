@@ -64,6 +64,8 @@ services.AddSingleton<ProcessService>();
 services.AddSingleton<NugetService>();
 services.AddSingleton<DebugAdapter>();
 services.AddSingleton<DebugService>();
+services.AddSingleton<Kod.Engine.Git.GitService>();
+services.AddSingleton<Kod.Engine.Testing.TestService>();
 services.AddHostedService<ParentWatchdog>();
 
 var app = builder.Build();

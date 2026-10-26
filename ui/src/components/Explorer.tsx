@@ -13,6 +13,7 @@ import { dotnetBuild, dotnetRun, dotnetTest, startTerminal } from '../store/proc
 import { useSettings } from '../store/settings';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
+import { changeKind, useGit } from '../store/git';
 import { FileIcon } from './common/icons';
 import { showContextMenu, type MenuItem } from './common/Menu';
 
@@ -81,6 +82,11 @@ export function Explorer() {
   const dirty = useEditors(useShallow((s) => s.tabs.filter((t) => t.dirty).map((t) => norm(t.path))));
   const showIgnored = useSettings((s) => s.settings.showIgnored);
   const treeRef = useRef<HTMLDivElement>(null);
+  const gitFiles = useGit((s) => s.status?.files);
+  const gitClass = (p: string) => {
+    const f = gitFiles?.find((g) => norm(g.path) === norm(p));
+    return f ? ` git-${changeKind(f)}` : '';
+  };
 
   useEffect(() => {
     useExplorer.getState().reset();
@@ -236,7 +242,7 @@ export function Explorer() {
             >
               <span className="tree-chevron">{entry.isDir ? open ? <ChevronDown size={14} /> : <ChevronRight size={14} /> : null}</span>
               <FileIcon path={entry.path} isDir={entry.isDir} open={open} />
-              <span className={`tree-label${dirty.includes(norm(entry.path)) ? ' dirty' : ''}`} style={project && samePath(project.path, startup) ? { fontWeight: 600 } : undefined}>
+              <span className={`tree-label${dirty.includes(norm(entry.path)) ? ' dirty' : ''}${gitClass(entry.path)}`} style={project && samePath(project.path, startup) ? { fontWeight: 600 } : undefined}>
                 {entry.name}
               </span>
               {project && <span className="tree-hint">{project.kind}</span>}

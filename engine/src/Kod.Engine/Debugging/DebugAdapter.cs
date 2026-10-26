@@ -21,7 +21,8 @@ public sealed class DebugAdapter(IHttpClientFactory http, ILogger<DebugAdapter> 
     {
         var arm = RuntimeInformation.OSArchitecture == Architecture.Arm64;
         if (OperatingSystem.IsWindows()) return "netcoredbg-win64.zip";
-        if (OperatingSystem.IsMacOS()) return arm ? "netcoredbg-osx-arm64.tar.gz" : "netcoredbg-osx-amd64.tar.gz";
+        // Samsung ships macOS as a .zip and only for Apple silicon (3.x releases)
+        if (OperatingSystem.IsMacOS()) return arm ? "netcoredbg-osx-arm64.zip" : null;
         if (OperatingSystem.IsLinux()) return arm ? "netcoredbg-linux-arm64.tar.gz" : "netcoredbg-linux-amd64.tar.gz";
         return null;
     }
