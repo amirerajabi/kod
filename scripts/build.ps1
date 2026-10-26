@@ -11,6 +11,6 @@ Remove-Item "$root/engine/publish" -Recurse -Force -ErrorAction SilentlyContinue
 dotnet publish "$root/engine/src/Kod.Engine/Kod.Engine.csproj" -c Release -r $rid --self-contained false -o "$root/engine/publish" -nologo
 if ($LASTEXITCODE -ne 0) { throw 'Engine publish failed' }
 
-Push-Location "$root/ui"; npm ci; npm run build; Pop-Location
-Push-Location "$root/desktop"; npm ci; if ($Dir) { npm run dist:dir } else { npm run dist }; Pop-Location
+Push-Location "$root/ui"; npm ci; if ($LASTEXITCODE -ne 0) { throw 'UI install failed' }; npm run build; if ($LASTEXITCODE -ne 0) { throw 'UI build failed' }; Pop-Location
+Push-Location "$root/desktop"; npm ci; if ($LASTEXITCODE -ne 0) { throw 'Desktop install failed' }; if ($Dir) { npm run dist:dir } else { npm run dist }; if ($LASTEXITCODE -ne 0) { throw 'Packaging failed' }; Pop-Location
 Write-Host "Done: $root/desktop/dist"

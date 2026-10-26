@@ -1,0 +1,82 @@
+# electron-builder config (the Rowlit layout).
+#   Windows: NSIS x64 installer -> desktop/dist/Kod-Setup-<version>.exe (scripts/build.ps1)
+# Inputs produced by the build script: ../engine/publish (the engine), ../ui/dist (the renderer).
+appId: dev.kod.ide
+productName: Kod
+copyright: Copyright (c) 2026 Kod contributors
+
+directories:
+  output: dist
+  buildResources: build
+
+# Only the bundled main/preload go into app.asar; there are no runtime node_modules.
+files:
+  - package.json
+  - out/main.js
+  - out/preload.js
+  - "!**/*.map"
+npmRebuild: false
+asar: true
+
+# Auto-update (src/updater.ts, electron-updater): the build keeps `--publish never`; this config writes
+# resources/app-update.yml into the app and latest.yml + .blockmap next to the installer, which are uploaded to the
+# v<version> release. File names in latest.yml are the artifactName below, i.e. exactly the uploaded asset names.
+publish:
+  provider: github
+  owner: amirerajabi
+  repo: kod
+  releaseType: release
+
+extraResources:
+  - from: ../ui/dist
+    to: ui
+  - from: build/icon.png
+    to: icon.png
+  - from: ../engine/publish
+    to: engine
+    filter:
+      - "**/*"
+      - "!**/*.pdb"
+      - "!web.config"
+      - "!*.staticwebassets.*.json"
+
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.ico
+  artifactName: Kod-Setup-${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: true
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Kod
+  installerIcon: build/icon.ico
+  uninstallerIcon: build/icon.ico
+  uninstallDisplayName: Kod ${version}
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true
+
+mac:
+  target: [dmg, zip]
+  icon: build/icon.icns
+  category: public.app-category.developer-tools
+  artifactName: Kod-${version}-mac-${arch}.${ext}
+  darkModeSupport: true
+
+linux:
+  target: [AppImage]
+  icon: build/icon.png
+  category: Development

@@ -2,7 +2,9 @@
 // The palette lists them; a capture-phase key listener runs the app-level ones even while Monaco has focus.
 import { api, errorText } from '../api/client';
 import type { DiagnosticDto } from '../api/types';
-import { editorAction, findUsages } from '../editor/CodeEditor';
+import { editorAction, findUsages, getEditor } from '../editor/CodeEditor';
+import { toggleBreakpointAtCursor } from '../editor/debugEditor';
+import { debugActive, startDebugging, step, stopDebugging, useDebug } from '../store/debug';
 import { isMac } from '../platform';
 import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
@@ -10,7 +12,9 @@ import { dotnetBuild, dotnetRun, dotnetTest, runningOf, startTerminal, stopAll }
 import { effectiveTheme, useSettings } from '../store/settings';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
+import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
+import { checkForUpdatesNow } from './updates';
 
 export interface Command {
   id: string;
@@ -20,6 +24,8 @@ export interface Command {
   run: () => void | Promise<void>;
   /** Runs even when a text field outside the editor has focus. */
   global?: boolean;
+  /** The key binding only applies while this holds (otherwise the key goes to the editor). */
+  when?: () => boolean;
 }
 
 const needsRoot = (fn: () => unknown) => () => {
@@ -78,8 +84,16 @@ export const COMMANDS: Command[] = [
   { id: 'build.rebuild', title: 'Rebuild Solution', category: 'Build', run: needsRoot(() => dotnetBuild('rebuild')) },
   { id: 'build.clean', title: 'Clean Solution', category: 'Build', run: needsRoot(() => dotnetBuild('clean')) },
   { id: 'build.restore', title: 'Restore NuGet Packages', category: 'Build', run: needsRoot(() => dotnetBuild('restore')) },
-  { id: 'run.run', title: 'Run', category: 'Run', keys: ['Shift+F10', 'Ctrl+F5', 'F5'], run: needsRoot(() => dotnetRun()), global: true },
-  { id: 'run.stop', title: 'Stop', category: 'Run', keys: ['Ctrl+F2', 'Shift+F5'], run: () => stopAll('run'), global: true },
+  { id: 'run.run', title: 'Run', category: 'Run', keys: ['Shift+F10', 'Ctrl+F5'], run: needsRoot(() => dotnetRun()), global: true },
+  { id: 'run.debug', title: 'Debug / Resume', category: 'Run', keys: ['F5', 'Shift+F9'], run: needsRoot(() => startDebugging()), global: true },
+  { id: 'run.stop', title: 'Stop', category: 'Run', keys: ['Shift+F5', 'Ctrl+F2'], run: () => (debugActive() ? void stopDebugging() : stopAll('run')), global: true },
+  { id: 'debug.stepOver', title: 'Step Over', category: 'Debug', keys: ['F10', 'F8'], run: () => void step('next'), global: true, when: debugActive },
+  { id: 'debug.stepInto', title: 'Step Into', category: 'Debug', keys: ['F11', 'F7'], run: () => void step('stepIn'), global: true, when: debugActive },
+  { id: 'debug.stepOut', title: 'Step Out', category: 'Debug', keys: ['Shift+F11', 'Shift+F8'], run: () => void step('stepOut'), global: true, when: debugActive },
+  { id: 'debug.pause', title: 'Pause', category: 'Debug', run: () => void step('pause') },
+  { id: 'debug.toggleBreakpoint', title: 'Toggle Breakpoint', category: 'Debug', keys: ['F9', 'Ctrl+F8'], run: () => toggleBreakpointAtCursor(getEditor()) },
+  { id: 'debug.clearBreakpoints', title: 'Remove All Breakpoints', category: 'Debug', run: () => useDebug.getState().clearAll() },
+  { id: 'view.debug', title: 'Debug Window', category: 'View', keys: ['Alt+5'], run: () => useUi.getState().showBottom('debug'), global: true },
   { id: 'run.stopBuild', title: 'Cancel Build', category: 'Build', keys: ['Ctrl+Break'], run: () => stopAll('build'), global: true },
   { id: 'run.tests', title: 'Run All Tests', category: 'Run', keys: ['Ctrl+U Ctrl+L'], run: needsRoot(() => dotnetTest()) },
 
@@ -99,6 +113,8 @@ export const COMMANDS: Command[] = [
   { id: 'view.zoomIn', title: 'Increase Font Size', category: 'View', keys: ['Ctrl+='], run: () => useSettings.getState().update({ fontSize: Math.min(32, useSettings.getState().settings.fontSize + 1) }), global: true },
   { id: 'view.zoomOut', title: 'Decrease Font Size', category: 'View', keys: ['Ctrl+-'], run: () => useSettings.getState().update({ fontSize: Math.max(9, useSettings.getState().settings.fontSize - 1) }), global: true },
   { id: 'view.shortcuts', title: 'Keyboard Shortcuts', category: 'Help', keys: ['Ctrl+K Ctrl+S'], run: () => useUi.getState().set({ shortcutsOpen: true }), global: true },
+  { id: 'help.checkForUpdates', title: 'Check for Updates…', category: 'Help', run: () => void checkForUpdatesNow() },
+  { id: 'help.about', title: 'About Kod', category: 'Help', run: () => openSettings('updates') },
 ];
 
 /** Alt+1 style: show the panel, or hide the dock when that panel is already showing. */
@@ -170,7 +186,7 @@ function chordOf(e: KeyboardEvent): string {
 }
 
 /** Shortcuts Monaco implements itself: left to the editor when it has focus. */
-const EDITOR_OWNED = new Set(['F12', 'Ctrl+B', 'Ctrl+Alt+B', 'Alt+F7', 'Shift+F12', 'Ctrl+F12', 'Alt+Left', 'Ctrl+Space', 'Alt+Enter', 'Ctrl+.', 'F2', 'Shift+F6', 'Ctrl+Alt+L', 'Shift+Alt+F', 'Ctrl+/', 'Ctrl+Shift+/', 'Ctrl+Shift+Space', 'Ctrl+Q', 'Ctrl+Shift+-', 'Ctrl+Shift+=']);
+const EDITOR_OWNED = new Set(['F9', 'Ctrl+F8', 'F12', 'Ctrl+B', 'Ctrl+Alt+B', 'Alt+F7', 'Shift+F12', 'Ctrl+F12', 'Alt+Left', 'Ctrl+Space', 'Alt+Enter', 'Ctrl+.', 'F2', 'Shift+F6', 'Ctrl+Alt+L', 'Shift+Alt+F', 'Ctrl+/', 'Ctrl+Shift+/', 'Ctrl+Shift+Space', 'Ctrl+Q', 'Ctrl+Shift+-', 'Ctrl+Shift+=']);
 
 export function installKeys(): () => void {
   let pendingChord: string | null = null;
@@ -201,7 +217,7 @@ export function installKeys(): () => void {
       if (!(chord === 'Ctrl+S')) return;
     }
 
-    const cmd = COMMANDS.find((c) => c.keys?.includes(full));
+    const cmd = COMMANDS.find((c) => c.keys?.includes(full) && (!c.when || c.when()));
     if (cmd) {
       if (inEditor && EDITOR_OWNED.has(full)) return;
       if (inField && !cmd.global) return;

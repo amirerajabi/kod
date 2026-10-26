@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using Kod.Engine;
+using Kod.Engine.Debugging;
 using Kod.Engine.Endpoints;
 using Kod.Engine.Infrastructure;
 using Kod.Engine.Intel;
@@ -61,6 +62,8 @@ services.AddSingleton<IntelService>();
 services.AddSingleton<CodeActionService>();
 services.AddSingleton<ProcessService>();
 services.AddSingleton<NugetService>();
+services.AddSingleton<DebugAdapter>();
+services.AddSingleton<DebugService>();
 services.AddHostedService<ParentWatchdog>();
 
 var app = builder.Build();
@@ -108,6 +111,7 @@ _ = Task.Run(() =>
 
 app.Lifetime.ApplicationStopping.Register(() =>
 {
+    app.Services.GetRequiredService<DebugService>().Dispose();
     processes.Dispose();
     workspace.Dispose();
 });

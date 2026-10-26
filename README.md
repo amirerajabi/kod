@@ -33,6 +33,21 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   window, Shift+F12 peek), file structure, metadata view for framework types (generated declarations with docs).
 - **Rename** across the solution (F2 / Shift+F6), **reformat** (Ctrl+Alt+L), comment, move/duplicate lines.
 
+**Debugger**
+- Breakpoints in the gutter (F9 / Ctrl+F8; conditions supported by the engine), F5 to debug or resume, F10 / F11 /
+  Shift+F11 to step, Shift+F5 to stop, the execution line while paused.
+- Debug tool window: call stack, variables tree, breakpoints, debug console with expression evaluation; hover a
+  variable while paused to see its value.
+- Uses [netcoredbg](https://github.com/Samsung/netcoredbg) (MIT) over the Debug Adapter Protocol; Kod downloads it
+  on first use (or set `KOD_NETCOREDBG`). ASP.NET Core apps get their launch profile URL and environment.
+
+**Settings and updates**
+- Rowlit's settings dialog: searchable sections, app themes (Light, Paper, Solarized Light, IntelliJ Light, Dark,
+  Midnight, Nord, Violet, Darcula; one light and one dark favourite for System mode) and code themes (Rider, Darcula,
+  Visual Studio, GitHub, Dracula, Monokai, One Dark, Solarized).
+- Auto-update from GitHub Releases (electron-updater): background download, status bar chip, Restart now / Later,
+  Settings › Updates, Help › Check for Updates.
+
 **Project and tools**
 - Open a folder, `.sln`, `.slnx` or `.csproj`; projects load through MSBuildWorkspace in the background.
   Files outside any project still get full IntelliSense (miscellaneous project on the framework reference pack).
@@ -92,7 +107,8 @@ pwsh scripts/build.ps1 -Dir     # unpacked app folder
 | Completion / parameter info / quick doc | Ctrl+Space / Ctrl+Shift+Space / Ctrl+Q |
 | Declaration / implementation / usages | F12, Ctrl+B / Ctrl+Alt+B / Alt+F7, Shift+F12 |
 | Rename / reformat | F2, Shift+F6 / Ctrl+Alt+L |
-| Build / run / stop | Ctrl+Shift+B / Shift+F10, F5 / Ctrl+F2, Shift+F5 |
+| Build / run / debug / stop | Ctrl+Shift+B / Shift+F10, Ctrl+F5 / F5 / Shift+F5 |
+| Breakpoint / step over / into / out | F9, Ctrl+F8 / F10, F8 / F11, F7 / Shift+F11 |
 | Explorer / tool windows / terminal | Alt+1 / Ctrl+J / Alt+F12 |
 | Save / save all / close tab | Ctrl+S / Ctrl+Shift+S / Ctrl+F4 |
 | Settings | Ctrl+Alt+S |
@@ -101,5 +117,4 @@ On macOS, Ctrl is ⌘.
 
 ## Not (yet) in Kod
 
-A debugger (breakpoints, stepping), a test explorer tree, Git UI beyond the branch name, and profilers. A
-debugger would plug in as a Debug Adapter Protocol client (netcoredbg) next to the process service.
+A test explorer tree, Git UI beyond the branch name, and profilers.

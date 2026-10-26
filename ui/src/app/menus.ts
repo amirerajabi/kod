@@ -79,8 +79,24 @@ export function appMenu(): MenuItem[] {
     },
     {
       label: 'Run',
-      submenu: [c('run.run'), c('run.stop'), 'separator', c('run.tests'), 'separator', c('view.newTerminal')],
+      submenu: [
+        c('run.run'),
+        c('run.debug'),
+        c('run.stop'),
+        'separator',
+        c('debug.stepOver'),
+        c('debug.stepInto'),
+        c('debug.stepOut'),
+        c('debug.pause'),
+        'separator',
+        c('debug.toggleBreakpoint'),
+        c('debug.clearBreakpoints'),
+        'separator',
+        c('run.tests'),
+        'separator',
+        c('view.newTerminal'),
+      ],
     },
-    { label: 'Help', submenu: [c('view.shortcuts'), c('nav.commands')] },
+    { label: 'Help', submenu: [c('view.shortcuts'), c('nav.commands'), 'separator', c('help.checkForUpdates'), c('help.about')] },
   ];
 }

@@ -1,0 +1,46 @@
+/* Breakpoints and the execution line in the editor (debugEditor.ts). */
+.kod-bp {
+  cursor: pointer;
+}
+.kod-bp::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: var(--bp, #e5484d);
+}
+.kod-bp.cond::before {
+  border-radius: 3px;
+}
+.kod-bp.unverified::before {
+  background: transparent;
+  border: 2px solid var(--bp, #e5484d);
+  box-sizing: border-box;
+}
+.kod-bp-line {
+  background: color-mix(in srgb, var(--bp, #e5484d) 14%, transparent);
+}
+.kod-exec-line {
+  background: color-mix(in srgb, var(--bp-exec, #f5c542) 28%, transparent);
+}
+.kod-frame-line {
+  background: color-mix(in srgb, var(--bp-exec, #f5c542) 14%, transparent);
+}
+.kod-exec-glyph::after,
+.kod-frame-glyph::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  margin: -6px 0 0 -4px;
+  border-style: solid;
+  border-width: 6px 0 6px 9px;
+  border-color: transparent transparent transparent var(--bp-exec, #f5c542);
+}
+.kod-frame-glyph::after {
+  opacity: 0.55;
+}

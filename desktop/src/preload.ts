@@ -21,4 +21,17 @@ contextBridge.exposeInMainWorld('kod', {
     ipcRenderer.on('engine:restarted', h);
     return () => ipcRenderer.removeListener('engine:restarted', h);
   },
+  appVersion: process.argv.find((a) => a.startsWith('--kod-version='))?.slice('--kod-version='.length) ?? '0.0.0',
+  // ---- updates (the Rowlit updater)
+  onUpdateStatus: (cb: (s: unknown) => void) => {
+    const h = (_e: unknown, s: unknown) => cb(s);
+    ipcRenderer.on('update:status', h);
+    return () => ipcRenderer.removeListener('update:status', h);
+  },
+  getUpdateStatus: () => ipcRenderer.invoke('update:status'),
+  checkForUpdates: (opts?: { manual?: boolean }) => ipcRenderer.invoke('update:check', { manual: opts?.manual === true }),
+  configureUpdates: (opts: { autoCheck: boolean }) => ipcRenderer.invoke('update:configure', { autoCheck: opts?.autoCheck === true }),
+  quitAndInstall: () => ipcRenderer.invoke('update:install'),
+  cancelUpdateDownload: () => ipcRenderer.invoke('update:cancel'),
+  showNotification: (n: { title: string; body: string }) => void ipcRenderer.invoke('notify', { title: String(n?.title ?? ''), body: String(n?.body ?? '') }),
 });
