@@ -17,6 +17,8 @@ public sealed record GitCommitFileDto(string Status, string Path, string? OrigPa
 
 public sealed record GitCommitDetailDto(string Hash, string Message, IReadOnlyList<GitCommitFileDto> Files);
 
+public sealed record GitRemoteDto(string Name, string FetchUrl, string PushUrl);
+
 public sealed record GitBlameLineDto(int Line, string Hash, string Author, long Time, string Summary);
 
 /// <summary>
@@ -367,6 +369,53 @@ public sealed class GitService(WorkspaceService workspace, EventHub hub, ILogger
             else if (l.StartsWith("summary ", StringComparison.Ordinal)) summary = l[8..];
         }
         return list;
+    }
+
+    // ------------------------------------------------------------------ remotes
+
+    public async Task<IReadOnlyList<GitRemoteDto>> RemotesAsync(CancellationToken ct)
+    {
+        var repo = await RepoAsync(ct);
+        var raw = await RunOkAsync(repo, ["remote", "-v"], ct);
+        var map = new Dictionary<string, (string? Fetch, string? Push)>();
+        foreach (var line in raw.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(line.Trim(), @"^(\S+)\s+(\S+)\s+\((fetch|push)\)$");
+            if (!m.Success) continue;
+            var cur = map.GetValueOrDefault(m.Groups[1].Value);
+            map[m.Groups[1].Value] = m.Groups[3].Value == "fetch" ? (m.Groups[2].Value, cur.Push) : (cur.Fetch, m.Groups[2].Value);
+        }
+        return map.Select(kv => new GitRemoteDto(kv.Key, kv.Value.Fetch ?? kv.Value.Push ?? "", kv.Value.Push ?? kv.Value.Fetch ?? "")).OrderBy(r => r.Name != "origin").ThenBy(r => r.Name).ToList();
+    }
+
+    private static void CheckRemote(string name, string url)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(name, @"^[A-Za-z0-9][A-Za-z0-9._/-]*$")) throw new ArgumentException($"'{name}' is not a valid remote name");
+        if (string.IsNullOrWhiteSpace(url) || url.StartsWith('-')) throw new ArgumentException("Enter the remote's URL");
+    }
+
+    public async Task AddRemoteAsync(string name, string url, CancellationToken ct)
+    {
+        CheckRemote(name, url);
+        var repo = await RepoAsync(ct);
+        await RunOkAsync(repo, ["remote", "add", name, url.Trim()], ct);
+        Changed();
+    }
+
+    public async Task UpdateRemoteAsync(string oldName, string name, string url, CancellationToken ct)
+    {
+        CheckRemote(name, url);
+        var repo = await RepoAsync(ct);
+        if (oldName != name) await RunOkAsync(repo, ["remote", "rename", oldName, name], ct);
+        await RunOkAsync(repo, ["remote", "set-url", name, url.Trim()], ct);
+        Changed();
+    }
+
+    public async Task RemoveRemoteAsync(string name, CancellationToken ct)
+    {
+        var repo = await RepoAsync(ct);
+        await RunOkAsync(repo, ["remote", "remove", name], ct);
+        Changed();
     }
 
     // ------------------------------------------------------------------ init

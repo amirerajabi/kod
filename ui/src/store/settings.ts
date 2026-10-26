@@ -10,6 +10,8 @@ export interface Settings {
   codeTheme: string;
   autoCheckUpdates: boolean;
   reopenLastWorkspace: boolean;
+  /** GitToolBox: author, date and summary of the caret line's last change at the end of the line. */
+  inlineBlame: boolean;
   fontSize: number;
   fontFamily: string;
   ligatures: boolean;
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   codeTheme: 'match',
   autoCheckUpdates: true,
   reopenLastWorkspace: true,
+  inlineBlame: true,
   fontSize: 14,
   fontFamily: "'JetBrains Mono', 'Cascadia Code', Consolas, monospace",
   ligatures: true,

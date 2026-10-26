@@ -13,6 +13,7 @@ import { onSystemThemeChange, useSettings } from '../store/settings';
 import { applyThemes } from '../theme/applyTheme';
 import { installUpdateWiring } from './updates';
 import { refreshGit } from '../store/git';
+import { onTerminalEvent, retheme } from '../store/terminals';
 import { discoverTests } from '../store/tests';
 import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
@@ -44,7 +45,10 @@ export async function boot(): Promise<void> {
   applyThemes();
   useSettings.subscribe((s, prev) => {
     const a = s.settings, b = prev.settings;
-    if (a.theme !== b.theme || a.appThemeLight !== b.appThemeLight || a.appThemeDark !== b.appThemeDark || a.codeTheme !== b.codeTheme) applyThemes();
+    if (a.theme !== b.theme || a.appThemeLight !== b.appThemeLight || a.appThemeDark !== b.appThemeDark || a.codeTheme !== b.codeTheme) {
+      applyThemes();
+      retheme();
+    }
   });
   onSystemThemeChange(() => useSettings.getState().settings.theme === 'system' && applyThemes());
 
@@ -80,6 +84,10 @@ export async function boot(): Promise<void> {
         for (const f of e.files) onDiskChange(f);
         refreshGit(600);
         if (e.files.some((f) => /\.(cs|csproj)$/i.test(f))) discoverTests(2500);
+        break;
+      case 'term.output':
+      case 'term.exit':
+        onTerminalEvent(e);
         break;
       case 'git.changed':
         refreshGit(0);

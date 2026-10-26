@@ -150,8 +150,17 @@ async function gitProc(title: string, args: string[]): Promise<boolean> {
 export const gitFetch = () => gitProc('Fetch', ['fetch', '--all', '--prune']);
 export const gitPull = () => gitProc('Update project', ['pull', '--ff-only']);
 
-export function gitPush(): Promise<boolean> {
+export async function gitPush(): Promise<boolean> {
   const s = useGit.getState().status;
+  // nowhere to push yet: Rider asks for a remote first
+  if (!s?.upstream) {
+    const remotes = await api.get<{ name: string }[]>('/git/remotes').catch(() => []);
+    if (remotes.length === 0) {
+      toast('info', 'Add a remote to push to', 'This repository has no remote yet.');
+      useUi.getState().set({ remotesOpen: true });
+      return false;
+    }
+  }
   return gitProc('Push', s?.upstream ? ['push'] : ['push', '-u', 'origin', 'HEAD']);
 }
 

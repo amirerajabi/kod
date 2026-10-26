@@ -1,4 +1,4 @@
-import { Download, GitBranch, GitBranchPlus, GitCommitHorizontal, RefreshCw, Trash2, Upload } from 'lucide-react';
+import { Download, Globe, GitBranch, GitBranchPlus, GitCommitHorizontal, RefreshCw, Trash2, Upload } from 'lucide-react';
 import { api, errorText } from '../api/client';
 import { checkout, deleteBranch, gitFetch, gitPull, gitPush, newBranch, useGit, type GitBranch as Branch } from '../store/git';
 import { toast, useUi } from '../store/ui';
@@ -33,6 +33,7 @@ export async function showBranchMenu(anchor: HTMLElement, above = false): Promis
     { label: 'Fetch', icon: <RefreshCw size={14} />, run: () => void gitFetch() },
     'separator',
     { label: 'New Branch…', icon: <GitBranchPlus size={14} />, run: () => void newBranch() },
+    { label: 'Manage Remotes…', icon: <Globe size={14} />, run: () => useUi.getState().set({ remotesOpen: true }) },
     'separator',
     ...(local.length ? local.map(branchItem) : [{ label: 'No local branches', disabled: true } as MenuItem]),
     ...(remote.length ? (['separator', { label: 'Remote', disabled: true }, ...remote.map(branchItem)] as MenuItem[]) : []),

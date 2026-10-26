@@ -3,6 +3,7 @@
 import { api } from '../api/client';
 import { diffLines } from '../lib/linediff';
 import { useGit } from '../store/git';
+import { useSettings } from '../store/settings';
 import { pathOfModel } from './models';
 import { monaco } from './monaco';
 import './git.css';
@@ -32,9 +33,84 @@ export function toggleBlame(): void {
   for (const l of blameListeners) l();
 }
 
+/** "3 days ago" style, as GitToolBox shows it. */
+export function timeAgo(seconds: number): string {
+  const d = Date.now() / 1000 - seconds;
+  const units: [number, string][] = [
+    [365 * 86400, 'year'],
+    [30 * 86400, 'month'],
+    [7 * 86400, 'week'],
+    [86400, 'day'],
+    [3600, 'hour'],
+    [60, 'minute'],
+  ];
+  for (const [s, name] of units) if (d >= s) return `${Math.floor(d / s)} ${name}${Math.floor(d / s) === 1 ? '' : 's'} ago`;
+  return 'just now';
+}
+
+interface BlameLine {
+  line: number;
+  hash: string;
+  author: string;
+  time: number;
+  summary: string;
+}
+
 export function attachGitDecorations(ed: monaco.editor.IStandaloneCodeEditor): () => void {
   const gutter = ed.createDecorationsCollection();
   const blame = ed.createDecorationsCollection();
+  const inline = ed.createDecorationsCollection();
+  // inline blame of the caret line (GitToolBox): blame of the model's current text, refetched after edits
+  let blameCache: { uri: string; version: number; lines: Map<number, BlameLine> } | null = null;
+  let inlineTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const renderInline = async () => {
+    const model = ed.getModel();
+    const path = pathOfModel(model);
+    const pos = ed.getPosition();
+    if (!useSettings.getState().settings.inlineBlame || !model || !path || !pos || model.uri.scheme !== 'file' || !useGit.getState().status?.isRepo || ed.getSelection()?.isEmpty() === false) {
+      inline.clear();
+      return;
+    }
+    const uri = model.uri.toString();
+    const version = model.getVersionId();
+    if (!blameCache || blameCache.uri !== uri || blameCache.version !== version) {
+      try {
+        const lines = await api.post<BlameLine[]>('/git/blame', { path, text: model.getValue() });
+        if (ed.getModel() !== model || model.getVersionId() !== version) return;
+        blameCache = { uri, version, lines: new Map(lines.map((l) => [l.line, l])) };
+      } catch {
+        inline.clear();
+        return;
+      }
+    }
+    const line = ed.getPosition()?.lineNumber ?? pos.lineNumber;
+    const b = blameCache.lines.get(line);
+    if (!b) {
+      inline.clear();
+      return;
+    }
+    const uncommitted = /^0+$/.test(b.hash);
+    const max = model.getLineMaxColumn(line);
+    inline.set([
+      {
+        range: new monaco.Range(line, max, line, max),
+        options: {
+          after: { content: uncommitted ? '      You · Not committed yet' : `      ${b.author}, ${timeAgo(b.time)} • ${b.summary.length > 60 ? `${b.summary.slice(0, 59)}…` : b.summary}`, inlineClassName: 'kod-inline-blame' },
+          hoverMessage: uncommitted ? undefined : { value: `**${b.summary}**\n\n${b.author} · ${new Date(b.time * 1000).toLocaleString()} · \`${b.hash.slice(0, 8)}\`` },
+        },
+      },
+    ]);
+  };
+  const scheduleInline = (ms = 250) => {
+    clearTimeout(inlineTimer);
+    inlineTimer = setTimeout(() => void renderInline(), ms);
+  };
+  const offCursor = ed.onDidChangeCursorPosition(() => {
+    inline.clear();
+    scheduleInline();
+  });
+  const offSettings = useSettings.subscribe((s, p) => s.settings.inlineBlame !== p.settings.inlineBlame && scheduleInline(0));
   let timer: ReturnType<typeof setTimeout> | undefined;
   let seq = 0;
 
@@ -106,6 +182,8 @@ export function attachGitDecorations(ed: monaco.editor.IStandaloneCodeEditor): (
   const offGit = useGit.subscribe((s, p) => {
     if (s.rev !== p.rev) {
       schedule(0);
+      blameCache = null; // a commit changes who wrote what
+      scheduleInline(0);
       if (blameOn) void renderBlame();
     }
   });
@@ -114,6 +192,9 @@ export function attachGitDecorations(ed: monaco.editor.IStandaloneCodeEditor): (
   schedule(0);
   return () => {
     clearTimeout(timer);
+    clearTimeout(inlineTimer);
+    offCursor.dispose();
+    offSettings();
     offContent.dispose();
     offModel.dispose();
     offGit();

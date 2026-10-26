@@ -95,6 +95,7 @@ export function EditorSection() {
       </Card>
       <Card title="Display">
         <ToggleRow id="set-minimap" label="Show the minimap" keywords="minimap overview scrollbar" checked={s.minimap} onChange={(v) => up({ minimap: v })} />
+        <ToggleRow id="set-blame" label="Show who changed the current line" hint="Author, time and commit message at the end of the caret line (like GitToolBox)" keywords="git blame inline annotate author gittoolbox" checked={s.inlineBlame} onChange={(v) => up({ inlineBlame: v })} />
         <ToggleRow id="set-sticky" label="Sticky scroll" hint="Keep the enclosing type and member visible at the top" keywords="sticky scroll header" checked={s.stickyScroll} onChange={(v) => up({ stickyScroll: v })} />
         <Row label="Show whitespace" htmlFor="set-ws" keywords="whitespace spaces tabs dots">
           <Select id="set-ws" value={s.renderWhitespace} options={[['none', 'Never'], ['selection', 'In the selection'], ['all', 'Always']]} onChange={(v) => up({ renderWhitespace: v })} />

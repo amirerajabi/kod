@@ -15,6 +15,7 @@ import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
 import { GitLogPanel } from './GitLogPanel';
 import { NugetWindow } from './NugetWindow';
+import { TerminalPane } from './TerminalPane';
 import { TestsPanel } from './TestsPanel';
 import { useTests } from '../store/tests';
 import { useDebug } from '../store/debug';
@@ -78,7 +79,7 @@ export function BottomPanel() {
           {tab === 'run' && <ProcessPane group="run" />}
           {tab === 'debug' && <DebugPanel />}
           {tab === 'build' && <ProcessPane group="build" />}
-          {tab === 'terminal' && <ProcessPane group="terminal" />}
+          {tab === 'terminal' && <TerminalPane />}
           {tab === 'tests' && <TestsPanel />}
           {tab === 'git' && <GitLogPanel />}
           {tab === 'nuget' && <NugetWindow />}

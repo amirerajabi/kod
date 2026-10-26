@@ -1758,3 +1758,18 @@ button.sb-item:hover {
   font-size: var(--text-xs);
   color: var(--fg);
 }
+
+.xterm-host {
+  width: 100%;
+  height: 100%;
+}
+.xterm-host .xterm-viewport {
+  background: transparent !important;
+}
+
+
+.tree-row.excluded > .tree-label,
+.tree-row.excluded > svg {
+  opacity: 0.5;
+}
+

@@ -24,6 +24,9 @@ public sealed record CommitBody(string Message, List<string>? Paths, bool Amend)
 public sealed record CheckoutBody(string Name, bool Create);
 public sealed record BlameBody(string Path, string? Text);
 public sealed record LatestBody(List<string> Ids, bool Prerelease);
+public sealed record TermInputBody(string Data);
+public sealed record TermResizeBody(int Cols, int Rows);
+public sealed record RemoteBody(string Name, string Url, string? OldName);
 
 public static class Endpoints
 {
@@ -123,6 +126,19 @@ public static class Endpoints
         api.MapGet("/tests/discover", (TestService t, CancellationToken ct) => t.DiscoverAsync(ct));
         api.MapPost("/tests/run", (TestRunRequest r, TestService t) => t.Run(r));
         api.MapGet("/tests/results/{runId}", (string runId, TestService t) => t.Results(runId));
+
+        // ---- terminals (pseudo consoles)
+        api.MapGet("/term", (TerminalService t) => t.List());
+        api.MapPost("/term/start", (TerminalStartRequest r, TerminalService t, CancellationToken ct) => t.StartAsync(r, ct));
+        api.MapPost("/term/{id}/input", async (string id, TermInputBody b, TerminalService t, CancellationToken ct) => { await t.WriteAsync(id, b.Data, ct); return Results.NoContent(); });
+        api.MapPost("/term/{id}/resize", (string id, TermResizeBody b, TerminalService t) => { t.Resize(id, b.Cols, b.Rows); return Results.NoContent(); });
+        api.MapPost("/term/{id}/kill", (string id, TerminalService t) => { t.Kill(id); return Results.NoContent(); });
+
+        // ---- git remotes
+        git.MapGet("/remotes", (GitService g, CancellationToken ct) => g.RemotesAsync(ct));
+        git.MapPost("/remotes/add", async (RemoteBody b, GitService g, CancellationToken ct) => { await g.AddRemoteAsync(b.Name, b.Url, ct); return Results.NoContent(); });
+        git.MapPost("/remotes/update", async (RemoteBody b, GitService g, CancellationToken ct) => { await g.UpdateRemoteAsync(b.OldName ?? b.Name, b.Name, b.Url, ct); return Results.NoContent(); });
+        git.MapPost("/remotes/remove", async (RemoteBody b, GitService g, CancellationToken ct) => { await g.RemoveRemoteAsync(b.Name, ct); return Results.NoContent(); });
 
         // ---- NuGet
         api.MapGet("/nuget/search", (string q, bool? prerelease, string? source, NugetService n, CancellationToken ct) => n.SearchAsync(q, prerelease == true, source, ct));
