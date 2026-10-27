@@ -77,6 +77,12 @@ services.AddSingleton<Kod.Engine.Ai.AiTools>();
 services.AddSingleton<Kod.Engine.Ai.AnthropicBackend>();
 services.AddSingleton<Kod.Engine.Ai.OpenAiCompatibleBackend>();
 services.AddSingleton<Kod.Engine.Ai.AiService>();
+services.AddSingleton<MemoryService>();
+services.AddHostedService(sp => sp.GetRequiredService<MemoryService>());
+// caches the memory service may empty
+services.AddSingleton<ITrimmable>(sp => sp.GetRequiredService<IntelService>());
+services.AddSingleton<ITrimmable>(sp => sp.GetRequiredService<CodeActionService>());
+services.AddSingleton<ITrimmable>(sp => sp.GetRequiredService<InspectionService>());
 services.AddHostedService<ParentWatchdog>();
 
 var app = builder.Build();
@@ -85,6 +91,13 @@ app.UseMiddleware<ErrorMiddleware>();
 app.UseCors();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 app.UseMiddleware<TokenAuthMiddleware>();
+var memory = app.Services.GetRequiredService<MemoryService>();
+// any request but the memory indicator's polling counts as activity: idle trimming waits for a quiet moment
+app.Use((ctx, next) =>
+{
+    if (!ctx.Request.Path.StartsWithSegments("/api/memory")) memory.Touch();
+    return next(ctx);
+});
 
 var hub = app.Services.GetRequiredService<EventHub>();
 var workspace = app.Services.GetRequiredService<WorkspaceService>();

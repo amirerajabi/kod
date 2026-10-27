@@ -19,6 +19,11 @@ const smokeTest = !!process.env.KOD_SMOKE_SHOT;
 // so the running window must too, or the taskbar shows the default Electron icon.
 if (process.platform === 'win32') app.setAppUserModelId('dev.kod.ide');
 
+// window.gc() for the memory indicator's Free Memory (V8 collects on its own otherwise)
+app.commandLine.appendSwitch('js-flags', '--expose-gc');
+// one window and no navigation: Chromium's spare renderer process (kept warm for the next site) is only memory
+app.commandLine.appendSwitch('disable-features', 'SpareRendererForSitePerProcess');
+
 protocol.registerSchemesAsPrivileged([{ scheme: 'kod', privileges: { standard: true, secure: true, supportFetchAPI: true, corsEnabled: true, codeCache: true } }]);
 
 // a smoke test runs beside an installed Kod: its own profile, no single-instance hand-off
@@ -167,6 +172,11 @@ function createWindow(): void {
     );
   }
 }
+
+// ---- memory: every Kod process (window, GPU, utility…) for the memory indicator; the engine reports its own
+ipcMain.handle('memory:metrics', () =>
+  app.getAppMetrics().map((m) => ({ pid: m.pid, type: m.type, name: m.name ?? m.serviceName ?? m.type, workingSetKb: m.memory.workingSetSize, privateKb: m.memory.privateBytes ?? m.memory.workingSetSize, cpu: m.cpu.percentCPUUsage })),
+);
 
 ipcMain.handle('engine:info', () => engineReady ?? Promise.reject(new Error('The engine is not running')));
 ipcMain.handle('dialog:folder', async (_e, title?: string) => {

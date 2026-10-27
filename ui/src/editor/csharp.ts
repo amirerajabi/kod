@@ -4,6 +4,7 @@ import { api, errorText, isAbort } from '../api/client';
 import type {
   CodeActionDto,
   CompletionListDto,
+  CompletionResolveDto,
   DefinitionDto,
   DiagnosticDto,
   FileEditsDto,
@@ -104,7 +105,7 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
       if (trigger === '<' && !/\w<$/.test(before)) return { suggestions: [] };
       const res = await call<CompletionListDto>('/intel/completion', docReq(model, position, { triggerCharacter: trigger }), token);
       if (!res) return null;
-      const suggestions = res.items.map((it): monaco.languages.CompletionItem & { _list?: string; _index?: number } => {
+      const suggestions = res.items.map((it): monaco.languages.CompletionItem & { _list?: string; _index?: number; _edits?: boolean } => {
         const replace = toRange(it.range);
         const insert = { ...replace, endLineNumber: position.lineNumber, endColumn: Math.max(replace.startColumn, position.column) };
         return {
@@ -118,15 +119,19 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
           preselect: it.preselect,
           _list: res.listId,
           _index: it.index,
+          _edits: it.editsOnResolve,
         };
       });
-      return { suggestions, incomplete: false };
+      // a cut-down list (the best of thousands): the editor asks again as the user types, the engine re-filters its cached list
+      return { suggestions, incomplete: res.incomplete ?? false };
     },
     async resolveCompletionItem(item, token) {
-      const x = item as typeof item & { _list?: string; _index?: number };
+      const x = item as typeof item & { _list?: string; _index?: number; _edits?: boolean };
       if (!x._list) return item;
-      const res = await call<{ documentation?: string }>('/intel/completion/resolve', { listId: x._list, index: x._index }, token);
+      const res = await call<CompletionResolveDto>('/intel/completion/resolve', { listId: x._list, index: x._index, edits: !!x._edits }, token);
       if (res?.documentation) item.documentation = { value: res.documentation };
+      // the using directive of a type from another namespace (Monaco waits for it when the item is accepted)
+      if (res?.additionalEdits?.length) item.additionalTextEdits = res.additionalEdits.map((e) => ({ range: toRange(e.range), text: e.newText }));
       return item;
     },
   });

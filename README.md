@@ -144,6 +144,25 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - Light / dark / system theme, settings (font, ligatures, tabs, wrap, minimap, auto save, format on save, …),
   keyboard shortcut sheet.
 
+**Memory and performance**
+- **Memory indicator** in the status bar (Kod's total, and the engine's share of its limit). Click it for the
+  **Memory** window: where the memory goes (the Roslyn engine, the window, GPU and other processes), a live graph,
+  the engine's documents, caches and garbage collections, **Free memory** and **Deep clean** (which also drops
+  Roslyn's compilations; they are rebuilt as you work).
+- The engine keeps itself small: it gives memory back to the system after you have been idle for a while or the
+  window has been hidden for a minute, and above its limit (Settings › Memory, default a quarter of the RAM) it
+  drops its caches and compilations, then warns you and suggests unloading projects.
+- **Unload / Load Project** (Explorer, or the Memory window), like Rider: an unloaded project leaves the solution
+  (no compilation, analysis or Find Usages inside it). Projects that use it compile against its last build, and
+  the choice is remembered per folder.
+- **Power Save Mode** (File menu): no inlay hints, Code Vision, inspections, inline blame, minimap or automatic
+  completion popup.
+- Completion sends only the best 400 matches for what you typed, out of the 10,000+ items Roslyn offers (all types
+  in scope, plus those from namespaces that are not imported yet). The engine re-filters its own list as you type,
+  so each further keystroke takes milliseconds, and the `using` for a type from another namespace is added when you
+  pick the item.
+- Old build and run outputs close themselves (Settings › Memory), and files opened only for a peek are released.
+
 ## Requirements
 
 - .NET 10 SDK (`dotnet` on PATH): the engine targets net10.0 and Kod builds and runs projects with it.

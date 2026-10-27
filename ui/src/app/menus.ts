@@ -1,4 +1,5 @@
 import type { MenuItem } from '../components/common/Menu';
+import { useSettings } from '../store/settings';
 import { useWorkspace } from '../store/workspace';
 import { openWorkspace } from './actions';
 import { commandById, keyLabel } from './commands';
@@ -39,8 +40,11 @@ export function appMenu(): MenuItem[] {
         c('history.label'),
         'separator',
         c('file.reloadProjects'),
+        c('file.unloadOtherProjects'),
+        c('file.loadAllProjects'),
         c('file.closeWorkspace'),
         'separator',
+        { ...(c('file.powerSave', 'Power Save Mode') as Exclude<MenuItem, 'separator'>), checked: useSettings.getState().prefs.powerSave },
         c('file.settings'),
       ],
     },
@@ -69,6 +73,7 @@ export function appMenu(): MenuItem[] {
         c('view.terminal'),
         c('view.toggleBottom'),
         'separator',
+        c('view.memory'),
         c('view.theme'),
         c('view.zoomIn'),
         c('view.zoomOut'),

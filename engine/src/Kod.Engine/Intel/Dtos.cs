@@ -17,11 +17,15 @@ public sealed record TextRequest(string Path, string? Text);
 
 public sealed record CompletionItemDto(
     int Index, string Label, string Kind, string? Detail, string FilterText, string SortText, string InsertText,
-    RangeDto Range, IReadOnlyList<TextEditDto>? AdditionalEdits, bool Preselect, bool IsSnippet);
+    RangeDto Range, IReadOnlyList<TextEditDto>? AdditionalEdits, bool Preselect, bool IsSnippet, bool EditsOnResolve = false);
 
-public sealed record CompletionListDto(string ListId, IReadOnlyList<CompletionItemDto> Items);
+/// <summary>An item's documentation, and for an item from another namespace the using directive it adds.</summary>
+public sealed record CompletionResolveDto(string? Documentation, IReadOnlyList<TextEditDto>? AdditionalEdits);
 
-public sealed record CompletionResolveRequest(string ListId, int Index);
+/// <param name="Incomplete">Only the best matches for the typed prefix: the editor asks again as the user types.</param>
+public sealed record CompletionListDto(string ListId, IReadOnlyList<CompletionItemDto> Items, bool Incomplete = false);
+
+public sealed record CompletionResolveRequest(string ListId, int Index, bool Edits = false);
 
 public sealed record HoverDto(string Markdown, RangeDto? Range);
 

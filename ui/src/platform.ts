@@ -28,6 +28,9 @@ export interface Platform {
   quitAndInstall?(): Promise<boolean>;
   cancelUpdateDownload?(): Promise<boolean>;
   showNotification?(n: { title: string; body: string }): void;
+  // ---- memory (desktop only): every Electron process, and dropping what the window can rebuild
+  getProcessMemory?(): Promise<{ pid: number; type: string; name: string; workingSetKb: number; privateKb: number; cpu: number }[]>;
+  freeRendererMemory?(): void;
   // ---- secrets (AI API keys); the desktop encrypts them with the OS keychain, the browser keeps them for the tab only
   hasSecret(name: string): Promise<boolean>;
   getSecret(name: string): Promise<string | null>;

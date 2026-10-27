@@ -59,6 +59,11 @@ function editorOptions(): monaco.editor.IEditorOptions & monaco.editor.IGlobalEd
     minimap: { enabled: s.minimap, renderCharacters: false, scale: 1, maxColumn: 100 },
     stickyScroll: { enabled: s.stickyScroll },
     renderWhitespace: s.renderWhitespace,
+    // Power Save Mode: completion only on Ctrl+Space, no animations
+    quickSuggestions: s.powerSave ? false : { other: true, comments: false, strings: true },
+    smoothScrolling: !s.powerSave,
+    cursorBlinking: s.powerSave ? 'solid' : 'smooth',
+    cursorSmoothCaretAnimation: s.powerSave ? 'off' : 'on',
   };
 }
 
@@ -78,9 +83,6 @@ export function CodeEditor() {
       model: null,
       automaticLayout: true,
       theme: 'kod',
-      smoothScrolling: true,
-      cursorBlinking: 'smooth',
-      cursorSmoothCaretAnimation: 'on',
       bracketPairColorization: { enabled: true },
       guides: { bracketPairs: 'active', indentation: true },
       'semanticHighlighting.enabled': true,
@@ -88,7 +90,6 @@ export function CodeEditor() {
       scrollBeyondLastLine: false,
       renderLineHighlight: 'all',
       suggest: { showStatusBar: true, preview: true, selectionMode: 'always' },
-      quickSuggestions: { other: true, comments: false, strings: true },
       inlayHints: { enabled: 'on' },
       lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.OnCode },
       padding: { top: 6 },

@@ -1,5 +1,5 @@
 // The window.kod bridge (ui/src/platform.ts). Only these calls cross into the main process.
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webFrame } from 'electron';
 
 type EngineInfo = { baseUrl: string; token: string };
 
@@ -34,6 +34,13 @@ contextBridge.exposeInMainWorld('kod', {
   quitAndInstall: () => ipcRenderer.invoke('update:install'),
   cancelUpdateDownload: () => ipcRenderer.invoke('update:cancel'),
   showNotification: (n: { title: string; body: string }) => void ipcRenderer.invoke('notify', { title: String(n?.title ?? ''), body: String(n?.body ?? '') }),
+  // ---- memory
+  getProcessMemory: () => ipcRenderer.invoke('memory:metrics'),
+  /** Drops the window's decoded images and other caches it can rebuild, then collects garbage. */
+  freeRendererMemory: () => {
+    webFrame.clearCache();
+    (globalThis as { gc?: () => void }).gc?.();
+  },
   // ---- secrets (AI API keys, encrypted by the OS)
   hasSecret: (name: string): Promise<boolean> => ipcRenderer.invoke('secrets:has', String(name)),
   getSecret: (name: string): Promise<string | null> => ipcRenderer.invoke('secrets:get', String(name)),

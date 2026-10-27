@@ -1,7 +1,7 @@
 {
   "name": "kod-desktop",
   "productName": "Kod",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Kod: a focused C# and .NET IDE",
   "author": "Kod contributors",
   "license": "UNLICENSED",

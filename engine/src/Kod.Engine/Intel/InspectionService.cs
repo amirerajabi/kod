@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
+using Kod.Engine.Infrastructure;
 using Kod.Engine.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeFixes;
@@ -14,10 +15,22 @@ namespace Kod.Engine.Intel;
 /// naming…) from the Features assemblies, plus every analyzer the projects reference (the SDK's CA rules, StyleCop,
 /// xunit.analyzers…). Severities follow the projects' .editorconfig.
 /// </summary>
-public sealed class InspectionService(WorkspaceService workspace, ILogger<InspectionService> log)
+public sealed class InspectionService(WorkspaceService workspace, ILogger<InspectionService> log) : ITrimmable
 {
     private readonly Lazy<ImmutableArray<DiagnosticAnalyzer>> builtIn = new(() => Discover(log));
     private readonly ConcurrentDictionary<ProjectId, (IReadOnlyList<AnalyzerReference> Refs, ImmutableArray<DiagnosticAnalyzer> Analyzers)> perProject = new();
+
+    public string CacheName => "Analyzer sets";
+
+    public int CacheCount => perProject.Count;
+
+    /// <summary>Forgets projects that left the solution (a reload gives every project a new id); aggressive: all of them.</summary>
+    public void Trim(bool aggressive)
+    {
+        var live = workspace.CurrentSolution.ProjectIds.ToHashSet();
+        foreach (var id in perProject.Keys)
+            if (aggressive || !live.Contains(id)) perProject.TryRemove(id, out _);
+    }
 
     private static ImmutableArray<DiagnosticAnalyzer> Discover(ILogger log)
     {

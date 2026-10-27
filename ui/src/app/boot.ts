@@ -24,6 +24,7 @@ import { discoverTests } from '../store/tests';
 import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
 import { registerDebugHover } from '../editor/debugEditor';
+import { onMemoryPressure, startMemoryMonitor, syncMemorySettings } from '../store/memory';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 
@@ -73,6 +74,7 @@ export async function boot(): Promise<void> {
   registerPostfix();
   registerSql();
   void refreshKeys();
+  startMemoryMonitor();
   window.addEventListener('focus', () => refreshGit(100));
 
   let lastRoot: string | undefined;
@@ -116,6 +118,9 @@ export async function boot(): Promise<void> {
       case 'git.changed':
         refreshGit(0);
         break;
+      case 'memory.pressure':
+        onMemoryPressure(e);
+        break;
       case 'debug.state':
       case 'debug.stopped':
       case 'debug.output':
@@ -132,6 +137,7 @@ export async function boot(): Promise<void> {
   platform.onEngineRestarted((info) => {
     setEngineInfo(info);
     void connectEvents();
+    syncMemorySettings();
     // the assistant's conversations lived in the old engine
     if (useAi.getState().busy) newChat();
     toast('warning', 'The engine restarted', 'Projects are being reloaded.');

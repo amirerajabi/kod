@@ -1,0 +1,151 @@
+/* Memory indicator (status bar) and the Memory dialog. Design tokens only. */
+
+.mem-indicator {
+  font-variant-numeric: tabular-nums;
+}
+.mem-bar {
+  position: relative;
+  width: 28px;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+.mem-bar > span,
+.mem-limit-bar > span,
+.mem-row-bar > span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+}
+.mem-indicator.warn .mem-bar > span {
+  background: var(--warning);
+}
+.mem-indicator.high .mem-bar > span {
+  background: var(--danger);
+}
+
+.mem-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mem-summary {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-4);
+  margin-bottom: var(--space-3);
+}
+.mem-total {
+  font-size: 28px;
+  font-weight: var(--weight-strong);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.mem-spark {
+  flex: 1;
+  height: 44px;
+  min-width: 0;
+}
+.mem-spark polyline {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+}
+
+.mem-limit {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+.mem-limit-bar,
+.mem-row-bar {
+  position: relative;
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--bg-sunken);
+  overflow: hidden;
+}
+
+.mem-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 var(--space-3) var(--space-3);
+}
+.mem-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.mem-row-label {
+  width: 170px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mem-row-value {
+  width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 6px var(--space-4);
+  padding: 0 var(--space-3) var(--space-3);
+  font-size: var(--text-sm);
+}
+.mem-stat {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  padding-bottom: 3px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mem-projects-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.mem-projects-head .btn {
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: var(--weight-regular);
+}
+.mem-projects {
+  max-height: 180px;
+  overflow: auto;
+  padding: 0 var(--space-3);
+}
+.mem-project {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 26px;
+  font-size: var(--text-sm);
+}
+.mem-project > span:nth-child(2) {
+  flex: 1;
+}
+.mem-project.unloaded > span:nth-child(2) {
+  color: var(--fg-muted);
+  text-decoration: line-through;
+}
+.mem-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--text-sm);
+}

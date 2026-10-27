@@ -13,7 +13,9 @@ namespace Kod.Engine.Workspace;
 
 public enum LoadState { None, Loading, Ready, Failed }
 
-public sealed record ProjectDto(string Name, string Path, string? TargetFramework, string Kind, bool Runnable);
+public sealed record ProjectDto(string Name, string Path, string? TargetFramework, string Kind, bool Runnable, bool Unloaded = false);
+
+public sealed record WorkspaceStatsDto(int Projects, int Unloaded, int Documents, int Open);
 
 public sealed record WorkspaceStateDto(
     LoadState State, string? Root, string? Target, string? Message,
@@ -32,6 +34,8 @@ public sealed class WorkspaceService : IDisposable
     private readonly SemaphoreSlim loadGate = new(1, 1);
     private readonly Dictionary<string, string> overlays = new(PathUtil.Comparer);
     private readonly Dictionary<string, ProjectId> miscProjects = new(PathUtil.Comparer);
+    /// <summary>Projects the user unloaded (Rider's Unload Project): left out of the solution to save memory.</summary>
+    private readonly HashSet<string> unloaded = new(PathUtil.Comparer);
     private readonly AdhocWorkspace adhoc = new(MefHostServices.DefaultHost);
     private readonly ConcurrentQueue<(WatcherChangeTypes Kind, string Path, string? OldPath)> fsEvents = new();
     private readonly Timer fsTimer;
@@ -86,7 +90,7 @@ public sealed class WorkspaceService : IDisposable
     // ------------------------------------------------------------------ open / load
 
     /// <summary>Opens a folder, a .sln/.slnx or a .csproj. Loading runs in the background (workspace.state events).</summary>
-    public WorkspaceStateDto Open(string path)
+    public WorkspaceStateDto Open(string path, IEnumerable<string>? unloadedProjects = null)
     {
         path = PathUtil.Normalize(path);
         string root;
@@ -116,6 +120,8 @@ public sealed class WorkspaceService : IDisposable
             watcher?.Dispose();
             overlays.Clear();
             miscProjects.Clear();
+            unloaded.Clear();
+            foreach (var p in unloadedProjects ?? []) unloaded.Add(PathUtil.Normalize(p));
             current = adhoc.CurrentSolution;
             Root = root;
             Target = target;
@@ -145,6 +151,7 @@ public sealed class WorkspaceService : IDisposable
             watcher = null;
             overlays.Clear();
             miscProjects.Clear();
+            unloaded.Clear();
             current = adhoc.CurrentSolution;
             Root = Target = null;
             projects = [];
@@ -242,9 +249,9 @@ public sealed class WorkspaceService : IDisposable
                 msbuild = ws;
                 ws = null;
                 miscProjects.Clear();
-                current = solution;
+                current = WithoutUnloaded(solution);
                 foreach (var (path, text) in overlays) ApplyText(path, text);
-                projects = dtos;
+                projects = dtos.Select(p => p with { Unloaded = unloaded.Contains(p.Path) }).ToList();
                 // a solution found in the folder becomes the build target
                 if (Target is null && targets is [var only] && Path.GetExtension(only).StartsWith(".sln", StringComparison.OrdinalIgnoreCase)) Target = only;
                 warnings = failures.Distinct().Take(50).ToList();
@@ -352,6 +359,102 @@ public sealed class WorkspaceService : IDisposable
             list.Add(new ProjectDto(name, group.Key, tfm, kind, !isTest && (exe || kind == "web")));
         }
         return list.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ToList();
+    }
+
+    // ------------------------------------------------------------------ memory: unloaded projects, fresh snapshots
+
+    /// <summary>
+    /// Unloads projects (they leave the solution: no compilation, no analysis, no find usages in them) or loads them
+    /// back (which re-reads the projects). Projects that reference an unloaded one get its built assembly instead.
+    /// </summary>
+    public WorkspaceStateDto SetUnloaded(IReadOnlyList<string> paths, bool unload)
+    {
+        var changed = false;
+        lock (sync)
+        {
+            foreach (var p in paths.Select(PathUtil.Normalize)) changed |= unload ? unloaded.Add(p) : unloaded.Remove(p);
+            if (changed && unload && state == LoadState.Ready)
+            {
+                current = Fresh(WithoutUnloaded(current));
+                projects = projects.Select(p => p with { Unloaded = unloaded.Contains(p.Path) }).ToList();
+            }
+        }
+        if (changed && !unload) Reload();
+        else if (changed) PublishState();
+        return GetState();
+    }
+
+    public IReadOnlyList<string> UnloadedProjects
+    {
+        get { lock (sync) return [.. unloaded]; }
+    }
+
+    private Solution WithoutUnloaded(Solution s)
+    {
+        if (unloaded.Count == 0) return s;
+        var gone = s.Projects.Where(p => p.FilePath is not null && unloaded.Contains(PathUtil.Normalize(p.FilePath))).ToList();
+        if (gone.Count == 0) return s;
+        var goneIds = gone.Select(p => p.Id).ToHashSet();
+        foreach (var p in s.Projects.Where(p => !goneIds.Contains(p.Id)).ToList())
+        {
+            foreach (var r in p.ProjectReferences.Where(r => goneIds.Contains(r.ProjectId)).ToList())
+            {
+                s = s.RemoveProjectReference(p.Id, r);
+                // the unloaded project's last build stands in for it, so the code using it still resolves
+                var target = s.GetProject(r.ProjectId);
+                var dll = new[] { target?.OutputRefFilePath, target?.OutputFilePath }.FirstOrDefault(File.Exists);
+                if (dll is not null) s = s.AddMetadataReference(p.Id, MetadataReference.CreateFromFile(dll, r.Aliases.IsEmpty ? default : new MetadataReferenceProperties(aliases: r.Aliases)));
+            }
+        }
+        foreach (var p in gone) s = s.RemoveProject(p.Id);
+        return s;
+    }
+
+    /// <summary>
+    /// Drops every compilation, syntax tree and semantic model Roslyn cached for the solution (they are rebuilt on
+    /// demand): the same projects and texts, as freshly added projects with nothing computed yet.
+    /// </summary>
+    public void DropSemanticState()
+    {
+        lock (sync)
+        {
+            if (state != LoadState.Ready && state != LoadState.Failed) return;
+            current = Fresh(current);
+        }
+    }
+
+    private static Solution Fresh(Solution s)
+    {
+        var infos = s.Projects.Select(InfoOf).ToList();
+        foreach (var p in s.ProjectIds.ToList()) s = s.RemoveProject(p);
+        // references go in once every project is back (they may point either way in the list)
+        foreach (var info in infos) s = s.AddProject(info.WithProjectReferences([]));
+        foreach (var info in infos.Where(i => i.ProjectReferences.Count > 0)) s = s.WithProjectReferences(info.Id, info.ProjectReferences);
+        return s;
+    }
+
+    private static ProjectInfo InfoOf(Project p)
+    {
+        static TextLoader Loader(TextDocument d) =>
+            d.TryGetText(out var text) && d.TryGetTextVersion(out var version)
+                ? TextLoader.From(TextAndVersion.Create(text, version, d.FilePath))
+                : d.FilePath is not null ? new FileTextLoader(d.FilePath, Encoding.UTF8) : TextLoader.From(TextAndVersion.Create(SourceText.From(""), VersionStamp.Create()));
+        static DocumentInfo Doc(TextDocument d) =>
+            DocumentInfo.Create(d.Id, d.Name, d.Folders, d is Document doc ? doc.SourceCodeKind : SourceCodeKind.Regular, Loader(d), d.FilePath);
+        return ProjectInfo.Create(p.Id, p.Version, p.Name, p.AssemblyName, p.Language, p.FilePath, p.OutputFilePath,
+                p.CompilationOptions, p.ParseOptions, p.Documents.Select(Doc), p.ProjectReferences, p.MetadataReferences, p.AnalyzerReferences,
+                p.AdditionalDocuments.Select(Doc), p.IsSubmission, null, p.OutputRefFilePath)
+            .WithAnalyzerConfigDocuments(p.AnalyzerConfigDocuments.Select(Doc))
+            .WithDefaultNamespace(p.DefaultNamespace)
+            .WithCompilationOutputInfo(p.CompilationOutputInfo);
+    }
+
+    public WorkspaceStatsDto Stats()
+    {
+        lock (sync)
+            return new WorkspaceStatsDto(
+                projects.Count(p => !p.Unloaded), unloaded.Count(u => projects.Any(p => PathUtil.Equal(p.Path, u))),
+                current.Projects.Sum(p => p.DocumentIds.Count), overlays.Count);
     }
 
     // ------------------------------------------------------------------ documents

@@ -38,6 +38,18 @@ export interface Settings {
   codeVision: boolean;
   /** Roslyn IDE analyzers and the projects' analyzers while typing (suggestions, unused code), not only compiler errors. */
   inspections: boolean;
+  /** Rider's Power Save Mode: no inlay hints, Code Vision, inspections, inline blame, minimap or automatic completion popup. */
+  powerSave: boolean;
+  /** Kod's memory use in the status bar. */
+  memoryIndicator: boolean;
+  /** Above this (MB) the engine drops its caches and compilations, then warns; 0 = a quarter of the RAM (1–4 GB). */
+  engineMemoryLimitMb: number;
+  /** Give memory back to the system when Kod has been idle for a while. */
+  idleTrim: boolean;
+  /** Warn when the engine stays above its memory limit. */
+  memoryWarnings: boolean;
+  /** Finished build / run outputs kept per tool window (older ones are closed). */
+  keepFinishedProcesses: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -69,19 +81,36 @@ export const DEFAULT_SETTINGS: Settings = {
   inlayHints: true,
   codeVision: true,
   inspections: true,
+  powerSave: false,
+  memoryIndicator: true,
+  engineMemoryLimitMb: 0,
+  idleTrim: true,
+  memoryWarnings: true,
+  keepFinishedProcesses: 8,
 };
 
+/** What Power Save Mode turns off on top of the user's own choices. */
+function effective(p: Settings): Settings {
+  return p.powerSave ? { ...p, inlayHints: false, codeVision: false, inspections: false, inlineBlame: false, minimap: false } : p;
+}
+
 interface SettingsState {
+  /** What the editor runs with: the user's choices, less what Power Save Mode turns off. */
   settings: Settings;
+  /** The user's own choices (the Settings dialog shows and edits these). */
+  prefs: Settings;
   update(p: Partial<Settings>): void;
 }
 
+const initial = load('settings', DEFAULT_SETTINGS);
+
 export const useSettings = create<SettingsState>((set, get) => ({
-  settings: load('settings', DEFAULT_SETTINGS),
+  settings: effective(initial),
+  prefs: initial,
   update: (p) => {
-    const settings = { ...get().settings, ...p };
-    set({ settings });
-    save('settings', settings);
+    const prefs = { ...get().prefs, ...p };
+    set({ prefs, settings: effective(prefs) });
+    save('settings', prefs);
   },
 }));
 
