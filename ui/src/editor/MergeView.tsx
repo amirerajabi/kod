@@ -249,9 +249,9 @@ export function MergeView({ path }: { path: string }) {
         <span>{rebase ? 'Your commit' : 'Theirs (being merged)'}</span>
       </div>
       <div className="merge-panes">
-        <div ref={leftHost} className="merge-pane" />
-        <div ref={centerHost} className="merge-pane result" />
-        <div ref={rightHost} className="merge-pane" />
+        <div ref={leftHost} className="merge-pane monaco-component" />
+        <div ref={centerHost} className="merge-pane result monaco-component" />
+        <div ref={rightHost} className="merge-pane monaco-component" />
       </div>
     </div>
   );

@@ -270,7 +270,8 @@ export function CodeEditor() {
       {tab?.kind === 'sql' && <SqlConsoleBar path={tab.path} run={(all) => editorInstance && runConsole(editorInstance, all)} />}
       {tab?.kind === 'metadata' && <div className="readonly-banner">Decompiled declarations from metadata (read-only). Members have no bodies.</div>}
       <div className="editor-host">
-        <div ref={host} className="monaco" />
+        {/* monaco-component: Monaco mounts its context menu in this element (outside .monaco-editor), so it needs the theme colour variables */}
+        <div ref={host} className="monaco monaco-component" />
       </div>
     </>
   );
