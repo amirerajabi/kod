@@ -28,6 +28,8 @@ export interface ProjectDto {
   targetFramework?: string;
   kind: 'exe' | 'library' | 'test' | 'web';
   runnable: boolean;
+  /** Unloaded by the user: out of the solution (no analysis, completion or find usages in it). */
+  unloaded?: boolean;
 }
 
 export interface WorkspaceStateDto {
@@ -79,11 +81,20 @@ export interface CompletionItemDto {
   additionalEdits?: TextEditDto[];
   preselect: boolean;
   isSnippet: boolean;
+  /** The using directive it adds comes with resolve (an item from a namespace that is not imported yet). */
+  editsOnResolve?: boolean;
 }
 
 export interface CompletionListDto {
   listId: string;
   items: CompletionItemDto[];
+  /** Only the best matches for the typed prefix: ask again as the user types. */
+  incomplete?: boolean;
+}
+
+export interface CompletionResolveDto {
+  documentation?: string;
+  additionalEdits?: TextEditDto[];
 }
 
 export interface HoverDto {
@@ -193,6 +204,7 @@ export type EngineEvent =
   | { type: 'proc.output'; id: string; text: string }
   | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended'; [k: string]: unknown }
   | { type: 'git.changed' }
+  | { type: 'memory.pressure'; usedMb: number; limitMb: number; projects: number }
   | { type: 'term.output'; id: string; data: string }
   | { type: 'term.exit'; id: string; exitCode: number }
   | { type: 'ai.delta' | 'ai.thinking' | 'ai.notice'; sessionId: string; text: string }

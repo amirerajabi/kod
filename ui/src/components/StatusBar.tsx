@@ -8,6 +8,7 @@ import { useSettings } from '../store/settings';
 import { askConfirm, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { UpdateChip } from './UpdateChip';
+import { MemoryIndicator } from './MemoryPanel';
 import { showBranchMenu } from './GitBranchMenu';
 import { useGit } from '../store/git';
 
@@ -45,6 +46,7 @@ export function StatusBar() {
       {ws.state === 'ready' && ws.root && (
         <span className="sb-item muted" title={ws.message ?? ''}>
           {ws.projects.length} project{ws.projects.length === 1 ? '' : 's'}
+          {ws.projects.some((p) => p.unloaded) && `, ${ws.projects.filter((p) => p.unloaded).length} unloaded`}
         </span>
       )}
       {ws.state === 'failed' && (
@@ -94,6 +96,7 @@ export function StatusBar() {
           {tab?.readOnly && <span className="sb-item muted">Read-only</span>}
         </>
       )}
+      <MemoryIndicator />
       <UpdateChip />
       <button className="sb-item" title="Keyboard shortcuts" onClick={() => useUi.getState().set({ shortcutsOpen: true })}>
         <Keyboard />

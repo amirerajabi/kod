@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { api, errorText } from '../api/client';
 import type { MetaDto, ProjectDto, WorkspaceStateDto } from '../api/types';
-import { basename, samePath } from '../lib/paths';
+import { basename, dirname, samePath } from '../lib/paths';
 import { loadRaw, save } from '../lib/storage';
 import { toast } from './ui';
 
@@ -26,7 +26,13 @@ interface WorkspaceStore {
   loadFiles(): Promise<string[]>;
   invalidateFiles(): void;
   removeRecent(path: string): void;
+  /** Unloads projects (out of the solution, to save memory and time) or loads them back. */
+  setUnloaded(paths: string[], unload: boolean): Promise<void>;
 }
+
+/** The folder a workspace path opens (a solution or project opens its directory). */
+const rootOf = (path: string) => (/\.(sln|slnx|csproj)$/i.test(path) ? dirname(path) : path);
+const unloadedKey = (root: string) => root.replace(/[\\/]+$/, '').replace(/\\/g, '/').toLowerCase();
 
 const EMPTY: WorkspaceStateDto = { state: 'none', projects: [], warnings: [] };
 
@@ -48,7 +54,8 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
   },
   open: async (path) => {
     try {
-      const ws = await api.post<WorkspaceStateDto>('/workspace/open', { path });
+      const unloaded = loadRaw<Record<string, string[]>>('unloaded', {})[unloadedKey(rootOf(path))] ?? [];
+      const ws = await api.post<WorkspaceStateDto>('/workspace/open', { path, unloaded });
       get().apply(ws);
       const recents = [{ path, name: basename(path), openedAt: Date.now() }, ...get().recents.filter((r) => !samePath(r.path, path))].slice(0, 12);
       set({ recents });
@@ -78,6 +85,15 @@ export const useWorkspace = create<WorkspaceStore>((set, get) => ({
     return files;
   },
   invalidateFiles: () => set({ files: null }),
+  setUnloaded: async (paths, unload) => {
+    try {
+      const ws = await api.post<WorkspaceStateDto>('/workspace/unload', { paths, unload });
+      get().apply(ws);
+      if (ws.root) save('unloaded', { ...loadRaw<Record<string, string[]>>('unloaded', {}), [unloadedKey(ws.root)]: ws.projects.filter((p) => p.unloaded).map((p) => p.path) });
+    } catch (e) {
+      toast('error', unload ? 'Could not unload the project' : 'Could not load the project', errorText(e));
+    }
+  },
   removeRecent: (path) => {
     const recents = get().recents.filter((r) => !samePath(r.path, path));
     set({ recents });

@@ -1,6 +1,7 @@
 using Kod.Engine.Ai;
 using Kod.Engine.Debugging;
 using Kod.Engine.Git;
+using Kod.Engine.Infrastructure;
 using Kod.Engine.Testing;
 using Kod.Engine.Intel;
 using Kod.Engine.Nuget;
@@ -10,6 +11,9 @@ using Kod.Engine.Workspace;
 namespace Kod.Engine.Endpoints;
 
 public sealed record PathBody(string Path);
+public sealed record OpenBody(string Path, List<string>? Unloaded = null);
+public sealed record UnloadBody(List<string> Paths, bool Unload);
+public sealed record TrimBody(bool Deep = false);
 public sealed record WriteBody(string Path, string Text, string? Label = null);
 public sealed record CreateBody(string Path, bool IsDir, string? Text);
 public sealed record RenameBody(string From, string To);
@@ -55,7 +59,13 @@ public static class Endpoints
 
         // ---- workspace
         api.MapGet("/workspace", (WorkspaceService ws) => ws.GetState());
-        api.MapPost("/workspace/open", (PathBody b, WorkspaceService ws) => ws.Open(b.Path));
+        api.MapPost("/workspace/open", (OpenBody b, WorkspaceService ws) => ws.Open(b.Path, b.Unloaded));
+        api.MapPost("/workspace/unload", (UnloadBody b, WorkspaceService ws) => ws.SetUnloaded(b.Paths, b.Unload));
+
+        // ---- memory
+        api.MapGet("/memory", (MemoryService m) => m.Stats());
+        api.MapPost("/memory/trim", (TrimBody b, MemoryService m) => m.TrimAsync(b.Deep, b.Deep ? "Free memory (deep)" : "Free memory"));
+        api.MapPost("/memory/settings", (MemorySettingsDto b, MemoryService m) => m.Configure(b));
         api.MapPost("/workspace/close", (WorkspaceService ws) => { ws.Close(); return Results.NoContent(); });
         api.MapPost("/workspace/reload", (WorkspaceService ws) => { ws.Reload(); return Results.NoContent(); });
         api.MapPost("/workspace/documentClosed", (PathBody b, WorkspaceService ws) => { ws.CloseDocument(b.Path); return Results.NoContent(); });
@@ -89,7 +99,7 @@ public static class Endpoints
         // ---- C# intelligence
         var intel = api.MapGroup("/intel");
         intel.MapPost("/completion", (DocRequest r, IntelService s, CancellationToken ct) => s.CompleteAsync(r, ct));
-        intel.MapPost("/completion/resolve", async (CompletionResolveRequest r, IntelService s, CancellationToken ct) => new { documentation = await s.ResolveCompletionAsync(r, ct) });
+        intel.MapPost("/completion/resolve", async (CompletionResolveRequest r, IntelService s, CancellationToken ct) => await s.ResolveCompletionAsync(r, ct) is { } c ? Results.Ok(c) : Results.NoContent());
         intel.MapPost("/hover", async (DocRequest r, IntelService s, CancellationToken ct) => await s.HoverAsync(r, ct) is { } h ? Results.Ok(h) : Results.NoContent());
         intel.MapPost("/signature", async (DocRequest r, IntelService s, CancellationToken ct) => await s.SignatureHelpAsync(r, ct) is { } h ? Results.Ok(h) : Results.NoContent());
         intel.MapPost("/diagnostics", (TextRequest r, IntelService s, CancellationToken ct) => s.DiagnosticsAsync(r, ct));

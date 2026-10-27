@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FilePlus, FolderPlus, Hammer, ListCollapse, Package, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FilePlus, FolderPlus, Hammer, ListCollapse, Package, PackageMinus, PackageOpen, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -157,6 +157,13 @@ export function Explorer() {
         ...(project.kind === 'test' ? [{ label: 'Run Tests', icon: <TestTube2 size={14} />, run: () => void dotnetTest(project.path) } as MenuItem] : []),
         ...(project.runnable ? [{ label: 'Set as Run Configuration', icon: <Star size={14} />, checked: samePath(startup, project.path), run: () => useWorkspace.getState().setStartup(project.path) } as MenuItem] : []),
         { label: 'Manage NuGet Packages', icon: <Package size={14} />, run: () => useUi.getState().showBottom('nuget') },
+        'separator',
+        project.unloaded
+          ? { label: 'Load Project', icon: <PackageOpen size={14} />, run: () => void useWorkspace.getState().setUnloaded([project.path], false) }
+          : { label: 'Unload Project', icon: <PackageMinus size={14} />, run: () => void useWorkspace.getState().setUnloaded([project.path], true) },
+        ...(projects.filter((p) => !p.unloaded && p !== project).length
+          ? [{ label: 'Unload All Other Projects', run: () => void useWorkspace.getState().setUnloaded(projects.filter((p) => !p.unloaded && p !== project).map((p) => p.path), true) } as MenuItem]
+          : []),
       );
     }
     items.push(
@@ -253,7 +260,7 @@ export function Explorer() {
               <span className={`tree-label${dirty.includes(norm(entry.path)) ? ' dirty' : ''}${gitClass(entry.path)}`} style={project && samePath(project.path, startup) ? { fontWeight: 600 } : undefined}>
                 {entry.name}
               </span>
-              {project && <span className="tree-hint">{project.kind}</span>}
+              {project && <span className="tree-hint" title={project.unloaded ? 'Unloaded: no completion, analysis or Find Usages inside it (right-click › Load Project)' : undefined}>{project.unloaded ? 'unloaded' : project.kind}</span>}
               {(ext === '.sln' || ext === '.slnx') && <span className="tree-hint">solution</span>}
             </div>
           );

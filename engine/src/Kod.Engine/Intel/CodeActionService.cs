@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Collections.Immutable;
 using System.Reflection;
+using Kod.Engine.Infrastructure;
 using Kod.Engine.Workspace;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CodeActions;
@@ -17,12 +18,23 @@ namespace Kod.Engine.Intel;
 /// Quick fixes and refactorings (Alt+Enter): Roslyn's own C# code fix and refactoring providers, discovered from the
 /// Features assemblies. Quick fixes run for compiler diagnostics in range; refactorings only when the user asks.
 /// </summary>
-public sealed class CodeActionService(WorkspaceService workspace, InspectionService inspections, ILogger<CodeActionService> log)
+public sealed class CodeActionService(WorkspaceService workspace, InspectionService inspections, ILogger<CodeActionService> log) : ITrimmable
 {
     private sealed record Cached(CodeAction Action, Solution Snapshot);
 
     private readonly ConcurrentDictionary<string, Cached> cache = new();
     private readonly ConcurrentQueue<string> order = new();
+
+    public string CacheName => "Quick-fix snapshots";
+
+    public int CacheCount => cache.Count;
+
+    /// <summary>Keeps the newest actions (a light bulb menu may still be open) unless <paramref name="aggressive"/>.</summary>
+    public void Trim(bool aggressive)
+    {
+        var keep = aggressive ? 0 : 20;
+        while (order.Count > keep && order.TryDequeue(out var old)) cache.TryRemove(old, out _);
+    }
     private readonly Lazy<(ILookup<string, CodeFixProvider> Fixes, IReadOnlyList<CodeRefactoringProvider> Refactorings)> providers = new(() => Discover(log));
 
     private static (ILookup<string, CodeFixProvider>, IReadOnlyList<CodeRefactoringProvider>) Discover(ILogger log)
@@ -320,7 +332,8 @@ public sealed class CodeActionService(WorkspaceService workspace, InspectionServ
         var id = Guid.NewGuid().ToString("N");
         cache[id] = new Cached(action, snapshot);
         order.Enqueue(id);
-        while (order.Count > 500 && order.TryDequeue(out var old)) cache.TryRemove(old, out _);
+        // each entry pins a whole solution snapshot: keep only the last few requests' actions
+        while (order.Count > 150 && order.TryDequeue(out var old)) cache.TryRemove(old, out _);
         return new CodeActionDto(id, action.Title, kind, preferred);
     }
 

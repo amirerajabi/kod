@@ -1,6 +1,6 @@
 // Settings (Rowlit's dialog): one fixed-size dialog for every section, a sidebar with search and the sections, and a
 // content pane of cards. Typing in the search shows the matching rows of every section at once.
-import { Bug, Code, Download, Hammer, Palette, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, X } from 'lucide-react';
+import { Bug, Code, Download, Gauge, Hammer, Palette, Search, Settings as SettingsIcon, SlidersHorizontal, Sparkles, X } from 'lucide-react';
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import { platform } from '../../platform';
 import { useUi } from '../../store/ui';
@@ -8,7 +8,7 @@ import { useUpdates } from '../../store/updates';
 import { Dialog } from '../common/Dialog';
 import { useSettingsNav, type SettingsSection } from './nav';
 import { SettingsQuery } from './search';
-import { AppearanceSection, BuildSection, DebuggerSection, EditorSection, GeneralSection } from './sections';
+import { AppearanceSection, BuildSection, DebuggerSection, EditorSection, GeneralSection, MemorySection } from './sections';
 import { UpdatesCard } from './UpdatesCard';
 import { AiSection } from './AiSection';
 import './settings.css';
@@ -27,6 +27,7 @@ const SECTIONS: SectionDef[] = [
   { id: 'editor', label: 'Editor', icon: <Code size={16} />, description: 'Writing and formatting code.', render: () => <EditorSection /> },
   { id: 'build', label: 'Build & run', icon: <Hammer size={16} />, description: 'Building, running and testing projects.', render: () => <BuildSection /> },
   { id: 'debugger', label: 'Debugger', icon: <Bug size={16} />, description: 'Breakpoints, stepping and the debug engine.', render: () => <DebuggerSection /> },
+  { id: 'memory', label: 'Memory & performance', icon: <Gauge size={16} />, description: 'How much memory Kod may use, freeing it, and Power Save Mode.', render: () => <MemorySection /> },
   { id: 'ai', label: 'AI Assistant', icon: <Sparkles size={16} />, description: 'Claude, ChatGPT, GLM and other AI providers.', render: () => <AiSection /> },
   { id: 'updates', label: 'Updates', icon: <Download size={16} />, description: 'Your version of Kod and new releases.', render: () => <UpdatesCard /> },
 ];

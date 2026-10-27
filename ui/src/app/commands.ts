@@ -35,6 +35,14 @@ import { gotoMnemonic, toggleAtCaret, toggleWithMnemonic } from '../editor/bookm
 import { importFromAppSettings, openConsole, useDb } from '../store/database';
 import { debugInDocker, runInDocker, stopDockerRun } from '../store/docker';
 import { showConflicts } from '../components/GitDialogs';
+import { freeMemory, useMemory } from '../store/memory';
+
+/** Keeps only the run configuration's project loaded (the rest leave the solution until loaded again). */
+function unloadOtherProjects(): Promise<void> {
+  const { ws, startup } = useWorkspace.getState();
+  const keep = startup ?? ws.projects.find((p) => !p.unloaded)?.path;
+  return useWorkspace.getState().setUnloaded(ws.projects.filter((p) => !p.unloaded && p.path !== keep).map((p) => p.path), true);
+}
 
 function toggleAi(): void {
   const ui = useUi.getState();
@@ -102,6 +110,12 @@ export const COMMANDS: Command[] = [
   { id: 'file.closeWorkspace', title: 'Close Workspace', category: 'File', run: closeWorkspace },
   { id: 'file.reloadProjects', title: 'Reload Projects', category: 'File', run: needsRoot(() => useWorkspace.getState().reload()) },
   { id: 'file.settings', title: 'Settings…', category: 'File', keys: ['Ctrl+Alt+S', 'Ctrl+,'], run: () => useUi.getState().set({ settingsOpen: true }), global: true },
+  { id: 'file.powerSave', title: 'Toggle Power Save Mode', category: 'File', run: () => useSettings.getState().update({ powerSave: !useSettings.getState().prefs.powerSave }) },
+  { id: 'file.unloadOtherProjects', title: 'Unload All Projects but the Run Configuration', category: 'File', run: needsRoot(unloadOtherProjects) },
+  { id: 'file.loadAllProjects', title: 'Load All Projects', category: 'File', run: needsRoot(() => useWorkspace.getState().setUnloaded(useWorkspace.getState().ws.projects.filter((p) => p.unloaded).map((p) => p.path), false)) },
+  { id: 'view.memory', title: 'Show Memory Usage', category: 'View', run: () => useMemory.setState({ dialogOpen: true }) },
+  { id: 'app.freeMemory', title: 'Free Memory', category: 'View', run: () => freeMemory(false) },
+  { id: 'app.deepClean', title: 'Free Memory and Drop Compilations', category: 'View', run: () => freeMemory(true) },
 
   // Navigate
   { id: 'nav.searchEverywhere', title: 'Search Everywhere', category: 'Navigate', keys: ['Shift Shift', 'Ctrl+T'], run: () => useUi.getState().openPalette('files'), global: true },
@@ -179,8 +193,8 @@ export const COMMANDS: Command[] = [
   { id: 'code.cleanup', title: 'Code Cleanup (this file)', category: 'Code', keys: ['Ctrl+Alt+Shift+L'], run: () => void codeCleanup() },
   { id: 'code.surround', title: 'Surround With…', category: 'Code', keys: ['Ctrl+Alt+T'], run: () => void withEditor(surroundWith) },
   { id: 'code.replace', title: 'Replace in File', category: 'Code', keys: ['Ctrl+R'], run: () => editorAction('editor.action.startFindReplaceAction'), when: editorFocused },
-  { id: 'code.toggleInlayHints', title: 'Toggle Inlay Hints', category: 'Code', run: () => useSettings.getState().update({ inlayHints: !useSettings.getState().settings.inlayHints }) },
-  { id: 'code.toggleCodeVision', title: 'Toggle Code Vision', category: 'Code', run: () => useSettings.getState().update({ codeVision: !useSettings.getState().settings.codeVision }) },
+  { id: 'code.toggleInlayHints', title: 'Toggle Inlay Hints', category: 'Code', run: () => useSettings.getState().update({ inlayHints: !useSettings.getState().prefs.inlayHints }) },
+  { id: 'code.toggleCodeVision', title: 'Toggle Code Vision', category: 'Code', run: () => useSettings.getState().update({ codeVision: !useSettings.getState().prefs.codeVision }) },
 
   // Refactor
   { id: 'refactor.this', title: 'Refactor This…', category: 'Refactor', keys: ['Ctrl+Shift+R'], run: () => void refactorThis(getEditor()) },
@@ -220,7 +234,7 @@ export const COMMANDS: Command[] = [
   { id: 'git.branches', title: 'Branches…', category: 'Git', keys: ['Ctrl+Shift+`'], run: needsRoot(() => { const el = document.querySelector<HTMLElement>('.statusbar button[title="Git branches"]'); if (el) void showBranchMenu(el, true); }), global: true },
   { id: 'git.diff', title: 'Show Diff with HEAD', category: 'Git', run: () => { const f = currentFilePath(); if (f) openDiff(f); } },
   { id: 'git.annotate', title: 'Annotate with Git Blame', category: 'Git', run: () => toggleBlame() },
-  { id: 'git.inlineBlame', title: 'Toggle Inline Blame (current line)', category: 'Git', run: () => useSettings.getState().update({ inlineBlame: !useSettings.getState().settings.inlineBlame }) },
+  { id: 'git.inlineBlame', title: 'Toggle Inline Blame (current line)', category: 'Git', run: () => useSettings.getState().update({ inlineBlame: !useSettings.getState().prefs.inlineBlame }) },
   { id: 'git.remotes', title: 'Manage Remotes…', category: 'Git', run: needsRoot(() => useUi.getState().set({ remotesOpen: true })) },
   { id: 'view.ai', title: 'AI Assistant', category: 'AI', keys: ['Alt+2'], run: toggleAi, global: true },
   { id: 'ai.ask', title: 'Ask AI…', category: 'AI', keys: ['Ctrl+Alt+Space'], run: focusAi, global: true },

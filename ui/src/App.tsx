@@ -15,6 +15,7 @@ import { GitDialogs } from './components/GitDialogs';
 import { RemotesDialog } from './components/RemotesDialog';
 import { SettingsDialog } from './components/settings/SettingsDialog';
 import { ShortcutSheet } from './components/ShortcutSheet';
+import { MemoryDialog } from './components/MemoryPanel';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { Welcome } from './components/Welcome';
@@ -55,6 +56,7 @@ export default function App() {
       <CommandPalette />
       <SettingsDialog />
       <ShortcutSheet />
+      <MemoryDialog />
       <NewProjectDialog />
       <RemotesDialog />
       <RefactorDialogs />

@@ -18,10 +18,29 @@ namespace Kod.Engine.Intel;
 
 /// <summary>C# language features on top of the workspace snapshot: completion, hover, signature help, diagnostics,
 /// navigation, find usages, rename, formatting, semantic colouring and outline.</summary>
-public sealed partial class IntelService(WorkspaceService workspace, MetadataViews metadata)
+public sealed partial class IntelService(WorkspaceService workspace, MetadataViews metadata) : ITrimmable
 {
     private readonly ConcurrentDictionary<string, (Document Doc, CompletionList List)> completionCache = new();
     private readonly ConcurrentQueue<string> completionOrder = new();
+
+    /// <summary>The last list Roslyn made, kept while the user types more of the same word (see <see cref="CompleteAsync"/>).</summary>
+    private sealed record LastCompletion(string Path, string ListId, Document Doc, CompletionList List, int Pos, string Before, string After);
+
+    private LastCompletion? lastCompletion;
+
+    /// <summary>At most this many items go to the editor; the list is then marked incomplete so the editor asks again as the user types.</summary>
+    private const int MaxCompletionItems = 400;
+
+    public string CacheName => "Completion lists";
+
+    public int CacheCount => completionCache.Count;
+
+    public void Trim(bool aggressive)
+    {
+        lastCompletion = null;
+        completionCache.Clear();
+        completionOrder.Clear();
+    }
 
     // ------------------------------------------------------------------ helpers
 
@@ -61,35 +80,70 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
         var pos = Offset(text, r.Line, r.Column);
         var service = CompletionService.GetService(doc);
         if (service is null) return new CompletionListDto("", []);
+        // typing more of the same word: filter the list Roslyn made for its first letters instead of asking it again
+        if (r.TriggerCharacter is null && lastCompletion is { } last && SameWord(last, r.Path, text, pos) && CompletionService.GetService(last.Doc) is { } lastService)
+            return await DescribeAsync(last.ListId, last.Doc, last.List, lastService, text, pos, pos - last.Pos, ct);
+
         var trigger = r.TriggerCharacter is { Length: 1 } ch ? CompletionTrigger.CreateInsertionTrigger(ch[0]) : CompletionTrigger.Invoke;
         var list = await service.GetCompletionsAsync(doc, pos, trigger, cancellationToken: ct);
-        var items = list.ItemsList;
         var listId = Guid.NewGuid().ToString("N");
         completionCache[listId] = (doc, list);
         completionOrder.Enqueue(listId);
         while (completionOrder.Count > 4 && completionOrder.TryDequeue(out var old)) completionCache.TryRemove(old, out _);
+        lastCompletion = list.ItemsList.Count > MaxCompletionItems
+            ? new LastCompletion(r.Path, listId, doc, list, pos, text.ToString(TextSpan.FromBounds(0, list.Span.Start)), text.ToString(TextSpan.FromBounds(pos, text.Length)))
+            : null;
+        return await DescribeAsync(listId, doc, list, service, text, pos, 0, ct);
+    }
 
-        var defaultRange = ToRange(text, list.Span);
-        var result = new List<CompletionItemDto>(items.Count);
+    /// <summary>The caret is still in the word the last list was made for, and nothing else in the file changed.</summary>
+    private static bool SameWord(LastCompletion last, string path, SourceText text, int pos)
+    {
+        var start = last.List.Span.Start;
+        if (!PathUtil.Equal(last.Path, path) || pos < start || text.Length - pos != last.After.Length) return false;
+        for (var i = start; i < pos; i++)
+            if (!char.IsLetterOrDigit(text[i]) && text[i] != '_') return false;
+        return text.ToString(TextSpan.FromBounds(pos, text.Length)) == last.After && text.ToString(TextSpan.FromBounds(0, start)) == last.Before;
+    }
+
+    /// <summary>
+    /// The items for the editor. A big list (every type in scope, plus unimported ones: often over 10,000) is cut to the
+    /// best matches for the typed prefix and marked incomplete, so the editor asks again (cheaply) as the user types.
+    /// <paramref name="shift"/> is how far the caret moved since Roslyn made the list (spans after it move with it).
+    /// </summary>
+    private async Task<CompletionListDto> DescribeAsync(string listId, Document doc, CompletionList list, CompletionService service, SourceText text, int pos, int shift, CancellationToken ct)
+    {
+        var items = list.ItemsList;
+        var oldText = await doc.GetTextAsync(ct);
+        var oldPos = pos - shift;
+        TextSpan Shifted(TextSpan s) => s.Start >= oldPos ? new TextSpan(s.Start + shift, s.Length) : s.End >= oldPos ? TextSpan.FromBounds(s.Start, Math.Max(s.Start, s.End + shift)) : s;
+        var prefix = text.ToString(TextSpan.FromBounds(list.Span.Start, Math.Max(list.Span.Start, pos)));
+        var incomplete = items.Count > MaxCompletionItems;
+        var picked = incomplete ? Pick(items, prefix) : Enumerable.Range(0, items.Count).ToList();
+
+        var defaultRange = ToRange(text, Shifted(list.Span));
+        var result = new List<CompletionItemDto>(picked.Count);
         var complex = 0;
-        for (var i = 0; i < items.Count; i++)
+        foreach (var i in picked)
         {
             var item = items[i];
             var insert = item.Properties.TryGetValue("InsertionText", out var ins) ? ins : item.DisplayText;
             var range = defaultRange;
             List<TextEditDto>? extra = null;
-            if (item.IsComplexTextEdit && complex++ < 60)
+            // an item from a namespace that is not imported yet only adds a using: that edit is made when the item is resolved
+            var import = item.IsComplexTextEdit && !string.IsNullOrEmpty(item.InlineDescription);
+            if (item.IsComplexTextEdit && !import && complex++ < 60)
             {
                 try
                 {
                     var change = await service.GetChangeAsync(doc, item, cancellationToken: ct);
                     var changes = change.TextChanges.IsDefaultOrEmpty ? [change.TextChange] : change.TextChanges;
                     var main = changes.FirstOrDefault(c => c.Span.IntersectsWith(list.Span) || c.Span.End == list.Span.End);
-                    if (main.NewText is not null && text.Lines.GetLineFromPosition(main.Span.Start).LineNumber == text.Lines.GetLineFromPosition(pos).LineNumber && main.Span.Start <= pos)
+                    if (main.NewText is not null && oldText.Lines.GetLineFromPosition(main.Span.Start).LineNumber == oldText.Lines.GetLineFromPosition(oldPos).LineNumber && main.Span.Start <= oldPos)
                     {
                         insert = main.NewText;
-                        range = ToRange(text, main.Span);
-                        extra = changes.Where(c => c != main).Select(c => new TextEditDto(ToRange(text, c.Span), c.NewText ?? "")).ToList();
+                        range = ToRange(text, Shifted(main.Span));
+                        extra = changes.Where(c => c != main).Select(c => new TextEditDto(ToRange(text, Shifted(c.Span)), c.NewText ?? "")).ToList();
                     }
                 }
                 catch (Exception) when (!ct.IsCancellationRequested)
@@ -108,25 +162,93 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
                 range,
                 extra is { Count: > 0 } ? extra : null,
                 item.Rules.MatchPriority > MatchPriority.Default,
-                false));
+                false,
+                import));
         }
-        return new CompletionListDto(listId, result);
+        return new CompletionListDto(listId, result, incomplete);
     }
 
-    public async Task<string?> ResolveCompletionAsync(CompletionResolveRequest r, CancellationToken ct)
+    /// <summary>
+    /// The indexes of the best items for <paramref name="prefix"/> (at most <see cref="MaxCompletionItems"/>, in the
+    /// list's order): exact-case prefix, any-case prefix, camel humps ("SB" → StringBuilder), substring, then
+    /// subsequence; types from namespaces that are not imported yet come after the ones in scope.
+    /// </summary>
+    private static List<int> Pick(IReadOnlyList<CompletionItem> items, string prefix)
+    {
+        var scored = new List<(int Rank, int Index)>(Math.Min(items.Count, 4096));
+        for (var i = 0; i < items.Count; i++)
+        {
+            var item = items[i];
+            var rank = MatchRank(item.FilterText, prefix);
+            if (rank < 0) continue;
+            if (item.IsComplexTextEdit && !string.IsNullOrEmpty(item.InlineDescription)) rank += 5;
+            if (item.Rules.MatchPriority > MatchPriority.Default) rank -= 1;
+            scored.Add((rank, i));
+        }
+        return scored.OrderBy(x => x.Rank).ThenBy(x => x.Index).Take(MaxCompletionItems).Select(x => x.Index).Order().ToList();
+    }
+
+    private static int MatchRank(string candidate, string prefix)
+    {
+        if (prefix.Length == 0) return 0;
+        if (candidate.StartsWith(prefix, StringComparison.Ordinal)) return 0;
+        if (candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) return 1;
+        if (CamelHumps(candidate, prefix)) return 2;
+        if (candidate.Contains(prefix, StringComparison.OrdinalIgnoreCase)) return 3;
+        var j = 0;
+        foreach (var c in candidate)
+            if (j < prefix.Length && char.ToLowerInvariant(c) == char.ToLowerInvariant(prefix[j])) j++;
+        return j == prefix.Length && char.ToLowerInvariant(candidate[0]) == char.ToLowerInvariant(prefix[0]) ? 4 : -1;
+    }
+
+    /// <summary>Each prefix letter starts a word of the candidate, or continues the current one ("StrBu" → StringBuilder).</summary>
+    private static bool CamelHumps(string candidate, string prefix)
+    {
+        var c = 0;
+        for (var p = 0; p < prefix.Length; p++)
+        {
+            var ch = char.ToLowerInvariant(prefix[p]);
+            if (p > 0 && c < candidate.Length && char.ToLowerInvariant(candidate[c]) == ch)
+            {
+                c++;
+                continue;
+            }
+            var k = c;
+            while (k < candidate.Length && !((k == 0 || char.IsUpper(candidate[k]) || candidate[k - 1] == '_') && char.ToLowerInvariant(candidate[k]) == ch)) k++;
+            if (k == candidate.Length) return false;
+            c = k + 1;
+        }
+        return true;
+    }
+
+    public async Task<CompletionResolveDto?> ResolveCompletionAsync(CompletionResolveRequest r, CancellationToken ct)
     {
         if (!completionCache.TryGetValue(r.ListId, out var entry)) return null;
         var items = entry.List.ItemsList;
         if (r.Index < 0 || r.Index >= items.Count) return null;
         var service = CompletionService.GetService(entry.Doc);
         if (service is null) return null;
-        var desc = await service.GetDescriptionAsync(entry.Doc, items[r.Index], ct);
-        if (desc is null || desc.Text.Length == 0) return null;
-        var lines = desc.Text.Split('\n', 2);
-        var md = new StringBuilder();
-        md.Append("```csharp\n").Append(lines[0].TrimEnd()).Append("\n```");
-        if (lines.Length > 1 && lines[1].Trim().Length > 0) md.Append("\n\n").Append(Markdown.Escape(lines[1].Trim()));
-        return md.ToString();
+        var item = items[r.Index];
+        List<TextEditDto>? edits = null;
+        if (r.Edits && item.IsComplexTextEdit)
+        {
+            // the edits besides the insertion (a using directive at the top: before the word, so unaffected by typing)
+            var text = await entry.Doc.GetTextAsync(ct);
+            var change = await service.GetChangeAsync(entry.Doc, item, cancellationToken: ct);
+            var changes = change.TextChanges.IsDefaultOrEmpty ? [change.TextChange] : change.TextChanges;
+            edits = changes.Where(c => c.Span.End < entry.List.Span.Start).Select(c => new TextEditDto(ToRange(text, c.Span), c.NewText ?? "")).ToList();
+        }
+        var desc = await service.GetDescriptionAsync(entry.Doc, item, ct);
+        string? md = null;
+        if (desc is { Text.Length: > 0 })
+        {
+            var lines = desc.Text.Split('\n', 2);
+            var sb = new StringBuilder();
+            sb.Append("```csharp\n").Append(lines[0].TrimEnd()).Append("\n```");
+            if (lines.Length > 1 && lines[1].Trim().Length > 0) sb.Append("\n\n").Append(Markdown.Escape(lines[1].Trim()));
+            md = sb.ToString();
+        }
+        return new CompletionResolveDto(md, edits);
     }
 
     // ------------------------------------------------------------------ hover

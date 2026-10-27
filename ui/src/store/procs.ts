@@ -38,11 +38,15 @@ interface ProcsState {
   select(group: ProcGroup, id: string): void;
   clear(id: string): void;
   remove(id: string): void;
+  /** Closes the oldest finished outputs beyond `keep` per tool window; aggressive also cuts long finished outputs. */
+  prune(keep: number, aggressive?: boolean): void;
   stop(id: string): Promise<void>;
   input(id: string, text: string): Promise<void>;
 }
 
 const MAX_TEXT = 2_000_000;
+/** What a finished, unseen output keeps when memory is freed. */
+const KEEP_TEXT = 200_000;
 const waiters = new Map<string, (p: ProcDto) => void>();
 const urlShown = new Set<string>();
 
@@ -74,6 +78,7 @@ export const useProcs = create<ProcsState>((set, get) => ({
       waiters.get(info.id)?.(info);
       waiters.delete(info.id);
       if (p) afterExit(info, p.text);
+      get().prune(useSettings.getState().settings.keepFinishedProcesses);
     }
   },
 
@@ -102,6 +107,30 @@ export const useProcs = create<ProcsState>((set, get) => ({
       const selected = { ...s.selected };
       if (group && selected[group] === id) selected[group] = Object.values(procs).filter((p) => groupOf(p.info.kind) === group).at(-1)?.info.id ?? null;
       return { procs, selected };
+    }),
+  prune: (keep, aggressive = false) =>
+    set((s) => {
+      const procs = { ...s.procs };
+      let changed = false;
+      const selected = new Set(Object.values(s.selected));
+      const finished = Object.values(procs).filter((p) => p.info.exitCode != null && p.info.kind !== 'terminal');
+      for (const group of new Set(finished.map((p) => groupOf(p.info.kind)))) {
+        // the newest stay (and whichever one is on screen)
+        const old = finished.filter((p) => groupOf(p.info.kind) === group).slice(0, -Math.max(1, keep));
+        for (const p of old)
+          if (!selected.has(p.info.id)) {
+            delete procs[p.info.id];
+            urlShown.delete(p.info.id);
+            changed = true;
+          }
+      }
+      if (aggressive)
+        for (const p of finished)
+          if (procs[p.info.id] && !selected.has(p.info.id) && p.text.length > KEEP_TEXT) {
+            procs[p.info.id] = { ...p, text: '…(older output dropped to save memory)\n' + p.text.slice(-KEEP_TEXT) };
+            changed = true;
+          }
+      return changed ? { procs } : s;
     }),
   stop: async (id) => {
     await api.post(`/proc/${id}/stop`).catch(() => undefined);

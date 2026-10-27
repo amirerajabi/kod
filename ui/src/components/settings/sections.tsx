@@ -1,14 +1,15 @@
-import { Bug, Download, Keyboard, LoaderCircle, Monitor, Moon, Sun } from 'lucide-react';
+import { Bug, Download, Keyboard, LoaderCircle, MemoryStick, Monitor, Moon, Sun } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { api, errorText } from '../../api/client';
 import { keyLabel } from '../../app/commands';
 import { isMac } from '../../platform';
+import { useMemory } from '../../store/memory';
 import { DEFAULT_SETTINGS, useSettings } from '../../store/settings';
 import { toast, useUi } from '../../store/ui';
 import { Card, FontPicker, Num, Row, Segmented, Select, ToggleRow } from './controls';
 import { AppThemePicker, CodeThemePicker } from './ThemePicker';
 
-const useS = () => useSettings((x) => x.settings);
+const useS = () => useSettings((x) => x.prefs);
 const up = (p: Parameters<ReturnType<typeof useSettings.getState>['update']>[0]) => useSettings.getState().update(p);
 
 export function GeneralSection() {
@@ -122,6 +123,52 @@ export function EditorSection() {
         <ToggleRow id="set-inlay" label="Inlay hints" hint="Parameter names before literal arguments and the inferred types of var and lambda parameters" keywords="inlay hints parameter names types var" checked={s.inlayHints} onChange={(v) => up({ inlayHints: v })} />
         <ToggleRow id="set-vision" label="Code Vision" hint="Usages, implementations and overrides above types and members" keywords="code vision lens usages implementations inheritors" checked={s.codeVision} onChange={(v) => up({ codeVision: v })} />
         <ToggleRow id="set-inspect" label="Code inspections while typing" hint="Roslyn's IDE analyzers and your projects' analyzers (suggestions, unused code, style), not only compiler errors" keywords="inspections analyzers suggestions warnings ide unused" checked={s.inspections} onChange={(v) => up({ inspections: v })} />
+      </Card>
+    </>
+  );
+}
+
+const LIMITS: [number, string][] = [
+  [0, 'Automatic (a quarter of the RAM)'],
+  [1024, '1 GB'],
+  [1536, '1.5 GB'],
+  [2048, '2 GB'],
+  [3072, '3 GB'],
+  [4096, '4 GB'],
+  [6144, '6 GB'],
+  [8192, '8 GB'],
+  [12288, '12 GB'],
+];
+
+export function MemorySection() {
+  const s = useS();
+  return (
+    <>
+      <Card title="Power Save Mode" description="Like Rider's: Kod stops the background work that costs memory and battery while you type.">
+        <ToggleRow
+          id="set-powersave"
+          label="Power Save Mode"
+          hint="No inlay hints, Code Vision, inspections, inline blame, minimap or automatic completion popup (Ctrl+Space still completes)"
+          keywords="power save battery performance fast slow laptop"
+          checked={s.powerSave}
+          onChange={(v) => up({ powerSave: v })}
+        />
+      </Card>
+      <Card title="Memory" description="The code engine (Roslyn) holds your solution's compilations; Kod keeps it within a limit and gives memory back when it can.">
+        <ToggleRow id="set-memind" label="Show the memory indicator in the status bar" hint="Click it for the breakdown, Free Memory and unloading projects" keywords="memory indicator status bar ram heap" checked={s.memoryIndicator} onChange={(v) => up({ memoryIndicator: v })} />
+        <Row label="Engine memory limit" htmlFor="set-memlimit" hint="Above it the engine drops its caches and compilations (rebuilt when needed), then warns you" keywords="memory limit heap xmx ram engine roslyn">
+          <Select id="set-memlimit" value={LIMITS.some(([v]) => v === s.engineMemoryLimitMb) ? s.engineMemoryLimitMb : 0} options={LIMITS} onChange={(v) => up({ engineMemoryLimitMb: v })} />
+        </Row>
+        <ToggleRow id="set-idletrim" label="Give memory back when idle" hint="After a minute without typing, or with the window hidden, Kod compacts its memory and returns what it freed to the system" keywords="idle trim free memory release background minimize" checked={s.idleTrim} onChange={(v) => up({ idleTrim: v })} />
+        <ToggleRow id="set-memwarn" label="Warn when memory runs low" hint="When the engine stays above its limit, suggest unloading projects" keywords="low memory warning notification" checked={s.memoryWarnings} onChange={(v) => up({ memoryWarnings: v })} />
+        <Row label="Finished outputs to keep" htmlFor="set-keepprocs" hint="Per tool window (Build, Run); older finished ones close themselves" keywords="build run output history processes keep">
+          <Num id="set-keepprocs" value={s.keepFinishedProcesses} min={1} max={50} onChange={(v) => up({ keepFinishedProcesses: v })} />
+        </Row>
+        <Row label="Memory details" hint="What Kod uses and where, Free Memory, and loading or unloading projects" keywords="memory usage details free unload projects">
+          <button type="button" className="btn" onClick={() => { useUi.getState().set({ settingsOpen: false }); useMemory.setState({ dialogOpen: true }); }}>
+            <MemoryStick size={16} /> Show memory…
+          </button>
+        </Row>
       </Card>
     </>
   );

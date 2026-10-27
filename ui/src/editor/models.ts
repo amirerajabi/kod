@@ -111,6 +111,17 @@ export function disposeModel(path: string): void {
   e.model.dispose();
 }
 
+/** Disposes the models opened only to peek at a file (find usages, go to definition previews) that no editor shows. */
+export function disposeUnusedModels(): number {
+  let n = 0;
+  for (const e of [...entries.values()])
+    if (e.ephemeral && !e.model.isAttachedToEditor()) {
+      disposeModel(e.path);
+      n++;
+    }
+  return n;
+}
+
 /** Replace the whole text keeping undo (external change on disk). */
 export function replaceText(e: ModelEntry, text: string): void {
   if (e.model.getValue() === text) return;
