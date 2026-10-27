@@ -141,6 +141,7 @@ public static class Endpoints
         intel.MapPost("/codeVision/resolve", async (DocRequest r, IntelService s, CancellationToken ct) => await s.CodeVisionAsync(r, ct) is { } c ? Results.Ok(c) : Results.NoContent());
         intel.MapPost("/postfix", async (DocRequest r, IntelService s, CancellationToken ct) => await s.PostfixAsync(r, ct) is { } p ? Results.Ok(p) : Results.NoContent());
         intel.MapPost("/typeDefinition", (DocRequest r, IntelService s, CancellationToken ct) => s.TypeDefinitionAsync(r, ct));
+        intel.MapPost("/reference", async (DocRequest r, IntelService s, CancellationToken ct) => new { reference = await s.ReferenceAsync(r, ct) });
 
         // ---- hierarchies and structural navigation
         intel.MapPost("/hierarchy/root", async (DocRequest r, string kind, IntelService s, CancellationToken ct) => await s.HierarchyRootAsync(r, kind, ct) is { } h ? Results.Ok(h) : Results.NoContent());
@@ -248,6 +249,7 @@ public static class Endpoints
         git.MapGet("/commit", (string hash, GitService g, CancellationToken ct) => g.CommitDetailAsync(hash, ct));
         git.MapPost("/blame", (BlameBody b, GitService g, CancellationToken ct) => g.BlameAsync(b.Path, b.Text, ct));
         git.MapPost("/init", async (GitService g, CancellationToken ct) => { await g.InitAsync(ct); return Results.NoContent(); });
+        git.MapGet("/link", (string path, int? line, int? endLine, GitService g, CancellationToken ct) => g.LinkAsync(path, line, endLine, ct));
 
         // ---- tests
         api.MapGet("/tests/discover", (TestService t, CancellationToken ct) => t.DiscoverAsync(ct));

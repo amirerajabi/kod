@@ -22,7 +22,7 @@ function parseEnv(text: string): Record<string, string> | undefined {
 
 /** A generated configuration the user left as it was is not saved (it follows the project). */
 const untouched = (c: RunConfig) =>
-  c.id.startsWith('auto:') && c.type === 'project' && samePath(c.id.slice(5), c.project) && !c.args && !c.env && !c.cwd && !c.hotReload && c.profile === undefined && c.name === useWorkspace.getState().ws.projects.find((p) => samePath(p.path, c.project))?.name;
+  c.id.startsWith('auto:') && c.type === 'project' && samePath(c.id.slice(5), c.project) && !c.args && !c.env && !c.cwd && !c.hotReload && !c.browser && !c.browserUrl && c.profile === undefined && c.name === useWorkspace.getState().ws.projects.find((p) => samePath(p.path, c.project))?.name;
 
 /** Run › Edit Configurations: the list on the left, the selected one's launch settings on the right. */
 export function RunConfigsDialog() {
@@ -203,6 +203,26 @@ function ProjectForm({ c, up }: { c: RunConfig; up: (p: Partial<RunConfig>) => v
         />
         <div className="form-help">One KEY=value per line, on top of the launch profile's.</div>
       </div>
+      <label htmlFor="rc-browser">After launch</label>
+      <div style={{ display: 'flex', gap: 4 }}>
+        <select id="rc-browser" className="input" style={{ width: 230, flexShrink: 0 }} value={c.browser ?? ''} onChange={(e) => up({ browser: (e.target.value || undefined) as RunConfig['browser'] })}>
+          <option value="">{`As the launch profile (${profile?.launchBrowser ? 'open' : "don't open"})`}</option>
+          <option value="open">Open the browser</option>
+          <option value="off">Don't open the browser</option>
+        </select>
+        <input
+          id="rc-browser-url"
+          className="input"
+          aria-label="Page to open"
+          disabled={c.browser === 'off' || (!c.browser && !profile?.launchBrowser)}
+          value={c.browserUrl ?? ''}
+          onChange={(e) => up({ browserUrl: e.target.value || undefined })}
+          placeholder={profile?.launchUrl ? `${profile.launchUrl} (the profile's)` : 'The app’s address, or a path: swagger'}
+          spellCheck={false}
+        />
+      </div>
+      <span />
+      <div className="form-help">Opens once the app prints "Now listening on", under Run and Debug; a Hot Reload restart does not open it again.</div>
       <span />
       <label className="check">
         <input type="checkbox" checked={!!c.hotReload} onChange={(e) => up({ hotReload: e.target.checked || undefined })} /> Hot Reload: apply saved changes to the running app (dotnet watch)

@@ -23,6 +23,10 @@ export interface RunConfig {
   env?: Record<string, string>;
   cwd?: string;
   hotReload?: boolean;
+  /** After launch: open the browser once the app listens; undefined follows the launch profile's launchBrowser. */
+  browser?: 'open' | 'off';
+  /** The page to open: a path under the app's address or an absolute URL; empty uses the profile's launchUrl. */
+  browserUrl?: string;
   /** Compound: the configurations it starts. */
   configs?: string[];
 }
@@ -33,6 +37,8 @@ export interface LaunchProfile {
   applicationUrl?: string;
   env: Record<string, string>;
   commandLineArgs?: string;
+  launchBrowser?: boolean;
+  launchUrl?: string;
 }
 
 /** The id of a project's generated configuration (saving one with this id replaces it). */
@@ -134,7 +140,22 @@ export function splitArgs(line: string | undefined): string[] {
   return out;
 }
 
-const launchOf = (c: RunConfig): LaunchOptions => ({ profile: c.profile, args: splitArgs(c.args), env: c.env, cwd: c.cwd });
+/** The launch profile a configuration uses (the named one, else the first that runs the project), or none. */
+async function profileOf(c: RunConfig): Promise<LaunchProfile | undefined> {
+  if (!c.project || c.profile === null) return undefined;
+  const all = await launchProfiles(c.project);
+  return c.profile ? all.find((p) => p.name === c.profile) : all.find((p) => p.commandName === 'Project');
+}
+
+/** What the browser opens once the app listens (Rider's "After launch"), or undefined when it does not open. */
+export async function browserOf(c: RunConfig): Promise<string | undefined> {
+  if (c.browser === 'off') return undefined;
+  const p = await profileOf(c);
+  if (c.browser !== 'open' && !p?.launchBrowser) return undefined;
+  return c.browserUrl?.trim() || p?.launchUrl || '';
+}
+
+const launchOf = async (c: RunConfig): Promise<LaunchOptions> => ({ profile: c.profile, args: splitArgs(c.args), env: c.env, cwd: c.cwd, browser: await browserOf(c) });
 
 /** The project configurations a configuration starts (itself, or a compound's members). */
 function members(c: RunConfig): RunConfig[] {
@@ -149,7 +170,7 @@ export async function runConfig(c = activeConfig()): Promise<void> {
   }
   const list = members(c);
   if (list.length === 0) toast('warning', `${c.name} has nothing to run`, 'Add configurations to the compound in Edit Configurations.');
-  for (const m of list) await dotnetRun(m.project, { title: m.name, ...launchOf(m), hotReload: m.hotReload });
+  for (const m of list) await dotnetRun(m.project, { title: m.name, ...(await launchOf(m)), hotReload: m.hotReload });
 }
 
 /** Debugs the configuration; a compound debugs its first member and runs the others (one debug session at a time). */
@@ -160,8 +181,8 @@ export async function debugConfig(c = activeConfig()): Promise<void> {
     toast('warning', `${c.name} has nothing to debug`);
     return;
   }
-  for (const m of rest) await dotnetRun(m.project, { title: m.name, ...launchOf(m), hotReload: m.hotReload });
-  await startDebugging(first.project, { launch: launchOf(first) });
+  for (const m of rest) await dotnetRun(m.project, { title: m.name, ...(await launchOf(m)), hotReload: m.hotReload });
+  await startDebugging(first.project, { launch: await launchOf(first) });
 }
 
 /** Reruns the configuration whose Run tab has this title (the Run window's Rerun button). */
