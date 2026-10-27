@@ -12,6 +12,7 @@ using Microsoft.CodeAnalysis.FindSymbols;
 using Microsoft.CodeAnalysis.Formatting;
 using Microsoft.CodeAnalysis.QuickInfo;
 using Microsoft.CodeAnalysis.Rename;
+using Microsoft.CodeAnalysis.Tags;
 using Microsoft.CodeAnalysis.Text;
 
 namespace Kod.Engine.Intel;
@@ -119,7 +120,10 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
         TextSpan Shifted(TextSpan s) => s.Start >= oldPos ? new TextSpan(s.Start + shift, s.Length) : s.End >= oldPos ? TextSpan.FromBounds(s.Start, Math.Max(s.Start, s.End + shift)) : s;
         var prefix = text.ToString(TextSpan.FromBounds(list.Span.Start, Math.Max(list.Span.Start, pos)));
         var incomplete = items.Count > MaxCompletionItems;
-        var picked = incomplete ? Pick(items, prefix) : Enumerable.Range(0, items.Count).ToList();
+        // ranked for the typed prefix; the rank goes out as the sort text, which the editor uses to order items its own
+        // fuzzy match scores the same ("Con": Console, Content and ConcurrentExclusiveSchedulerPair all tie)
+        var ranked = prefix.Length > 0 || incomplete;
+        var picked = ranked ? Pick(items, prefix, incomplete) : Enumerable.Range(0, items.Count).ToList();
 
         var defaultRange = ToRange(text, Shifted(list.Span));
         var result = new List<CompletionItemDto>(picked.Count);
@@ -127,6 +131,7 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
         foreach (var i in picked)
         {
             var item = items[i];
+            var sortText = ranked ? result.Count.ToString("D4") : item.SortText;
             var insert = item.Properties.TryGetValue("InsertionText", out var ins) ? ins : item.DisplayText;
             var range = defaultRange;
             List<TextEditDto>? extra = null;
@@ -157,7 +162,7 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
                 Kinds.FromTags(item.Tags),
                 string.IsNullOrEmpty(item.InlineDescription) ? null : item.InlineDescription,
                 item.FilterText,
-                item.SortText,
+                sortText,
                 insert,
                 range,
                 extra is { Count: > 0 } ? extra : null,
@@ -169,23 +174,41 @@ public sealed partial class IntelService(WorkspaceService workspace, MetadataVie
     }
 
     /// <summary>
-    /// The indexes of the best items for <paramref name="prefix"/> (at most <see cref="MaxCompletionItems"/>, in the
-    /// list's order): exact-case prefix, any-case prefix, camel humps ("SB" → StringBuilder), substring, then
-    /// subsequence; types from namespaces that are not imported yet come after the ones in scope.
+    /// The indexes of the items, best first for <paramref name="prefix"/>: exact-case prefix, any-case prefix, camel humps
+    /// ("SB" → StringBuilder), substring, then subsequence; types from namespaces that are not imported yet come after the
+    /// ones in scope. Equal matches go locals, members, keywords, types, namespaces, then shorter names first ("Con":
+    /// Console before ConcurrentExclusiveSchedulerPair). <paramref name="cut"/> keeps only the best
+    /// <see cref="MaxCompletionItems"/> matches; otherwise the items that do not match stay, last, for the editor to filter.
     /// </summary>
-    private static List<int> Pick(IReadOnlyList<CompletionItem> items, string prefix)
+    private static List<int> Pick(IReadOnlyList<CompletionItem> items, string prefix, bool cut)
     {
-        var scored = new List<(int Rank, int Index)>(Math.Min(items.Count, 4096));
+        var scored = new List<(int Rank, int Kind, int Length, int Index)>(Math.Min(items.Count, 4096));
         for (var i = 0; i < items.Count; i++)
         {
             var item = items[i];
             var rank = MatchRank(item.FilterText, prefix);
-            if (rank < 0) continue;
+            if (rank < 0)
+            {
+                if (cut) continue;
+                rank = 99;
+            }
             if (item.IsComplexTextEdit && !string.IsNullOrEmpty(item.InlineDescription)) rank += 5;
             if (item.Rules.MatchPriority > MatchPriority.Default) rank -= 1;
-            scored.Add((rank, i));
+            scored.Add((rank, KindRank(item.Tags), item.FilterText.Length, i));
         }
-        return scored.OrderBy(x => x.Rank).ThenBy(x => x.Index).Take(MaxCompletionItems).Select(x => x.Index).Order().ToList();
+        var best = scored.OrderBy(x => x.Rank).ThenBy(x => x.Kind).ThenBy(x => x.Length).ThenBy(x => x.Index).Select(x => x.Index);
+        return (cut ? best.Take(MaxCompletionItems) : best).ToList();
+    }
+
+    private static int KindRank(ImmutableArray<string> tags)
+    {
+        if (tags.Contains(WellKnownTags.Local) || tags.Contains(WellKnownTags.Parameter) || tags.Contains(WellKnownTags.RangeVariable)) return 0;
+        if (tags.Contains(WellKnownTags.ExtensionMethod)) return 2;
+        if (tags.Contains(WellKnownTags.Property) || tags.Contains(WellKnownTags.Field) || tags.Contains(WellKnownTags.Method)
+            || tags.Contains(WellKnownTags.Event) || tags.Contains(WellKnownTags.Constant) || tags.Contains(WellKnownTags.EnumMember)) return 1;
+        if (tags.Contains(WellKnownTags.Keyword) || tags.Contains(WellKnownTags.Snippet)) return 2;
+        if (tags.Contains(WellKnownTags.Namespace)) return 4;
+        return 3;
     }
 
     private static int MatchRank(string candidate, string prefix)
