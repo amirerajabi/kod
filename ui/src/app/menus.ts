@@ -1,5 +1,6 @@
 import type { MenuItem } from '../components/common/Menu';
 import { toolWindowsMenu } from '../components/ToolStripe';
+import { useDebug } from '../store/debug';
 import { useSettings } from '../store/settings';
 import { useWorkspace } from '../store/workspace';
 import { openWorkspace } from './actions';
@@ -42,6 +43,7 @@ export function appMenu(): MenuItem[] {
           submenu: [c('history.show', 'Show History'), c('history.selection', 'Show History for Selection'), c('history.project', 'Show Project History'), c('history.recent'), 'separator', c('history.label', 'Put Label on File…'), c('history.projectLabel', 'Put Label on Project…')],
         },
         'separator',
+        c('project.properties'),
         c('file.reloadProjects'),
         c('file.unloadOtherProjects'),
         c('file.loadAllProjects'),
@@ -129,6 +131,7 @@ export function appMenu(): MenuItem[] {
         c('code.quickDoc'),
         'separator',
         c('code.actions'),
+        c('code.generate'),
         c('code.surround'),
         c('code.format'),
         c('code.cleanup'),
@@ -146,7 +149,7 @@ export function appMenu(): MenuItem[] {
     },
     {
       label: 'Refactor',
-      submenu: [c('refactor.this'), 'separator', c('refactor.rename'), c('refactor.changeSignature'), c('refactor.safeDelete'), c('refactor.extractInterface')],
+      submenu: [c('refactor.this'), 'separator', c('refactor.rename'), c('refactor.changeSignature'), c('refactor.safeDelete'), c('refactor.inline'), 'separator', c('refactor.extractInterface'), c('refactor.extractClass'), c('refactor.moveType'), c('refactor.pullUp'), c('refactor.pushDown')],
     },
     {
       label: 'Build',
@@ -158,14 +161,25 @@ export function appMenu(): MenuItem[] {
         c('run.run'),
         c('run.debug'),
         c('run.stop'),
+        c('run.editConfigs'),
         'separator',
+        c('debug.attach'),
         c('debug.stepOver'),
         c('debug.stepInto'),
         c('debug.stepOut'),
+        c('debug.runToCursor'),
         c('debug.pause'),
         'separator',
         c('debug.toggleBreakpoint'),
+        c('debug.editBreakpoint'),
         c('debug.clearBreakpoints'),
+        {
+          label: 'Break on Exceptions',
+          submenu: [
+            { ...(c('debug.breakOnUnhandled', 'User-Unhandled') as Exclude<MenuItem, 'separator'>), checked: useDebug.getState().exceptionFilters.includes('user-unhandled') },
+            { ...(c('debug.breakOnAll', 'All Thrown') as Exclude<MenuItem, 'separator'>), checked: useDebug.getState().exceptionFilters.includes('all') },
+          ],
+        },
         'separator',
         c('run.docker'),
         c('run.debugDocker'),
@@ -199,6 +213,8 @@ export function appMenu(): MenuItem[] {
         c('git.abort'),
         'separator',
         c('view.git'),
+        c('view.pulls'),
+        c('git.createPr'),
         c('git.remotes'),
         c('git.init'),
       ],

@@ -95,6 +95,7 @@ export async function refactorThis(ed: monaco.editor.ICodeEditor | null): Promis
   if (res.canChangeSignature) items.push({ label: 'Change Signature…', shortcut: keyLabel('Ctrl+F6'), run: () => void changeSignature(ed) });
   if (res.canSafeDelete) items.push({ label: 'Safe Delete…', shortcut: keyLabel('Alt+Delete'), run: () => void safeDelete(ed) });
   if (res.canExtractInterface) items.push({ label: 'Extract Interface…', run: () => void extractInterface(ed) });
+  items.push(...(await import('./generate').then((m) => m.moreRefactorItems(ed))));
   if (res.roslyn.length) {
     if (items.length) items.push('separator');
     for (const r of res.roslyn) items.push({ label: r.title, run: () => void applyCodeAction(r.id) });

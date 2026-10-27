@@ -9,6 +9,9 @@ import { languageOf, monaco } from './monaco';
 async function sideText(path: string, rev: string): Promise<string> {
   if (rev.startsWith('history:')) return (await api.get<{ text: string }>('/history/text', { path, id: rev.slice(8) })).text;
   if (rev === 'empty') return '';
+  // a pull request's side: gh:<commit>:<repository-relative path> (from GitHub when the commit is not fetched)
+  const gh = /^gh:([0-9a-fA-F]+):(.+)$/.exec(rev);
+  if (gh) return (await api.get<{ text: string }>('/git/pulls/content', { path: gh[2], sha: gh[1] })).text;
   if (rev === 'working') {
     const open = getEntry(path);
     if (open) return open.model.getValue();

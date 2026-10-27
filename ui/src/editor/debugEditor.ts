@@ -1,6 +1,7 @@
 // The debugger in the editor: breakpoint dots in the glyph margin (click to toggle), the execution line while stopped,
 // breakpoints that move with the edited text, and hover evaluation of the expression under the mouse.
-import { evaluate, useDebug } from '../store/debug';
+import { showContextMenu, type MenuItem } from '../components/common/Menu';
+import { evaluate, runToCursor, useDebug, type Breakpoint } from '../store/debug';
 import { useEditors } from '../store/editors';
 import { pathOfModel } from './models';
 import { monaco } from './monaco';
@@ -25,16 +26,20 @@ export function attachDebugDecorations(ed: monaco.editor.IStandaloneCodeEditor):
     bpDecos.set(
       bps
         .filter((b) => b.line <= model.getLineCount())
-        .map((b) => ({
-          range: new monaco.Range(b.line, 1, b.line, 1),
-          options: {
-            isWholeLine: true,
-            stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-            glyphMarginClassName: `kod-bp${b.condition ? ' cond' : ''}${live && b.verified === false ? ' unverified' : ''}`,
-            glyphMarginHoverMessage: { value: b.condition ? `Breakpoint when \`${b.condition}\`` : 'Breakpoint (click to remove)' },
-            className: 'kod-bp-line',
-          },
-        })),
+        .map((b) => {
+          const off = b.enabled === false;
+          const kind = off ? ' off' : b.suspend === false ? ' log' : b.condition || b.hitCondition ? ' cond' : '';
+          return {
+            range: new monaco.Range(b.line, 1, b.line, 1),
+            options: {
+              isWholeLine: true,
+              stickiness: monaco.editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+              glyphMarginClassName: `kod-bp${kind}${live && !off && b.verified === false ? ' unverified' : ''}`,
+              glyphMarginHoverMessage: { value: describe(b) },
+              className: `kod-bp-line${off ? ' off' : ''}`,
+            },
+          };
+        }),
     );
     lastLines = bps.map((b) => b.line).join(',');
     const frame = d.frames.find((f) => f.id === d.frameId);
@@ -63,14 +68,24 @@ export function attachDebugDecorations(ed: monaco.editor.IStandaloneCodeEditor):
       const lines = [...new Set(bpDecos.getRanges().map((r) => r.startLineNumber))].sort((a, b) => a - b);
       if (lines.join(',') === lastLines) return;
       const old = Object.values(useDebug.getState().breakpoints).find((b) => b.path.toLowerCase() === path.toLowerCase())?.bps ?? [];
-      useDebug.getState().setLines(path, lines.map((line, i) => ({ line, condition: old[i]?.condition })));
+      useDebug.getState().setLines(path, lines.map((line, i) => ({ ...old[i], line, verified: undefined })));
     }, 400);
   });
 
+  // click toggles; Shift+click adds a logpoint (Rider); right-click: the breakpoint's menu
   const offMouse = ed.onMouseDown((e) => {
     if (e.target.type !== monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN || !e.target.position) return;
     const path = pathOfModel(ed.getModel());
-    if (path && ed.getModel()?.getLanguageId() === 'csharp') useDebug.getState().toggle(path, e.target.position.lineNumber);
+    if (!path || ed.getModel()?.getLanguageId() !== 'csharp') return;
+    const line = e.target.position.lineNumber;
+    const has = bpAt(path, line);
+    if (e.event.rightButton) {
+      e.event.preventDefault();
+      showContextMenu(e.event.browserEvent, gutterMenu(path, line));
+    } else if (e.event.shiftKey && !has) {
+      useDebug.getState().update(path, line, { suspend: false });
+      useDebug.setState({ editing: { path, line } });
+    } else useDebug.getState().toggle(path, line);
   });
 
   render();
@@ -82,6 +97,36 @@ export function attachDebugDecorations(ed: monaco.editor.IStandaloneCodeEditor):
     offMouse.dispose();
     clearTimeout(timer);
   };
+}
+
+const bpAt = (path: string, line: number) => Object.values(useDebug.getState().breakpoints).find((b) => b.path.toLowerCase() === path.toLowerCase())?.bps.find((b) => b.line === line);
+
+/** The gutter hover: what the breakpoint does. */
+function describe(b: Breakpoint): string {
+  const parts = [b.enabled === false ? 'Disabled breakpoint' : b.suspend === false ? 'Logpoint' : 'Breakpoint'];
+  if (b.condition) parts.push(`when \`${b.condition}\``);
+  if (b.hitCondition) parts.push(`on hit \`${b.hitCondition}\``);
+  if (b.logMessage) parts.push(`logs \`${b.logMessage}\``);
+  if (b.temporary) parts.push('(removed once hit)');
+  return `${parts.join(' ')}\n\nClick to remove · right-click for properties`;
+}
+
+function gutterMenu(path: string, line: number): MenuItem[] {
+  const b = bpAt(path, line);
+  const d = useDebug.getState();
+  if (!b)
+    return [
+      { label: 'Add Breakpoint', run: () => d.toggle(path, line) },
+      { label: 'Add Logpoint…', run: () => (d.update(path, line, { suspend: false }), useDebug.setState({ editing: { path, line } })) },
+      { label: 'Add Conditional Breakpoint…', run: () => useDebug.setState({ editing: { path, line } }) },
+      ...(d.status === 'stopped' ? (['separator', { label: 'Run to This Line', run: () => void runToCursor(path, line) }] as MenuItem[]) : []),
+    ];
+  return [
+    { label: 'Edit Breakpoint…', run: () => useDebug.setState({ editing: { path, line } }) },
+    { label: b.enabled === false ? 'Enable' : 'Disable', run: () => d.update(path, line, { enabled: b.enabled === false ? undefined : false }) },
+    { label: 'Remove', danger: true, run: () => d.toggle(path, line) },
+    ...(d.status === 'stopped' ? (['separator', { label: 'Run to This Line', run: () => void runToCursor(path, line) }] as MenuItem[]) : []),
+  ];
 }
 
 /** F9 / Ctrl+F8 at the caret. */

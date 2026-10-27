@@ -4,14 +4,15 @@ import { api, errorText } from '../api/client';
 import type { DiagnosticDto } from '../api/types';
 import { editorAction, findUsages, getEditor, showUsages } from '../editor/CodeEditor';
 import { toggleBreakpointAtCursor } from '../editor/debugEditor';
-import { debugActive, startDebugging, step, stopDebugging, useDebug } from '../store/debug';
+import { debugActive, runToCursor, step, stopDebugging, useDebug, type ExceptionFilter } from '../store/debug';
+import { debugConfig, runConfig, useRunConfigs } from '../store/runConfigs';
 import { isMac } from '../platform';
 import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
-import { dotnetBuild, dotnetRun, startTerminal, stopAll } from '../store/procs';
+import { dotnetBuild, startTerminal, stopAll } from '../store/procs';
 import { effectiveTheme, useSettings } from '../store/settings';
 import { askText, toast, useUi } from '../store/ui';
-import { startupProject, useWorkspace } from '../store/workspace';
+import { projectOf, startupProject, useWorkspace } from '../store/workspace';
 import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
 import { checkForUpdatesNow } from './updates';
@@ -28,6 +29,7 @@ import { pathOfModel } from '../editor/models';
 import { gotoBase, gotoMember, gotoRelated, navigateBack, navigateForward, showAtCaret } from '../editor/navigation';
 import { surroundWith } from '../editor/postfix';
 import { changeSignature, extractInterface, refactorThis, safeDelete } from '../editor/refactor';
+import { extractClass, generateMenu, inline, moveType, pullMembersUp, pushMembersDown } from '../editor/generate';
 import { applyFileEdits } from '../store/editors';
 import { showHierarchy } from '../store/hierarchy';
 import { inspectSolution } from '../store/inspections';
@@ -35,15 +37,24 @@ import { gotoMnemonic, toggleAtCaret, toggleWithMnemonic } from '../editor/bookm
 import { importFromAppSettings, openConsole, useDb } from '../store/database';
 import { debugInDocker, runInDocker, stopDockerRun } from '../store/docker';
 import { showConflicts } from '../components/GitDialogs';
+import { showCreatePullRequest } from '../store/pulls';
 import { freeMemory, useMemory } from '../store/memory';
 import { generateHttpFile } from '../store/http';
 import { putProjectLabel } from '../editor/ProjectHistoryView';
+import { openProjectProperties } from '../components/ProjectPropertiesDialog';
 
 /** Keeps only the run configuration's project loaded (the rest leave the solution until loaded again). */
 function unloadOtherProjects(): Promise<void> {
   const { ws, startup } = useWorkspace.getState();
   const keep = startup ?? ws.projects.find((p) => !p.unloaded)?.path;
   return useWorkspace.getState().setUnloaded(ws.projects.filter((p) => !p.unloaded && p.path !== keep).map((p) => p.path), true);
+}
+
+function toggleExceptionFilter(f: ExceptionFilter): void {
+  const cur = useDebug.getState().exceptionFilters;
+  const on = !cur.includes(f);
+  useDebug.getState().setExceptionFilters(on ? [...cur, f] : cur.filter((x) => x !== f));
+  toast('info', `${f === 'all' ? 'All exceptions' : 'User-unhandled exceptions'}: ${on ? 'the debugger stops on them' : 'not stopping on them'}`, undefined, 2500);
 }
 
 function toggleAi(): void {
@@ -97,12 +108,20 @@ const needsRoot = (fn: () => unknown) => () => {
   void fn();
 };
 
+/** Project Properties of the current file's project, else of the run configuration's. */
+function openCurrentProjectProperties() {
+  const file = currentFilePath();
+  const project = (file && projectOf(file)) || startupProject();
+  if (project) openProjectProperties(project.path);
+  else toast('info', 'No project to show the properties of');
+}
+
 export const COMMANDS: Command[] = [
   // File
   { id: 'file.openFolder', title: 'Open Folder…', category: 'File', keys: ['Ctrl+K Ctrl+O'], run: openFolder, global: true },
   { id: 'file.openSolution', title: 'Open Solution or Project…', category: 'File', run: openSolutionFile },
   { id: 'file.newProject', title: 'New Project / Solution…', category: 'File', run: () => useUi.getState().set({ newProjectOpen: true }) },
-  { id: 'file.newClass', title: 'New C# Class…', category: 'File', keys: ['Alt+Insert'], run: needsRoot(() => createItem(newItemDir(), 'class')) },
+  { id: 'file.newClass', title: 'New C# Class…', category: 'File', keys: ['Alt+Insert'], run: needsRoot(() => createItem(newItemDir(), 'class')), when: () => !csharpEditorFocused() },
   { id: 'file.newInterface', title: 'New C# Interface…', category: 'File', run: needsRoot(() => createItem(newItemDir(), 'interface')) },
   { id: 'file.newFile', title: 'New File…', category: 'File', run: needsRoot(() => createItem(newItemDir(), 'file')) },
   { id: 'file.save', title: 'Save', category: 'File', keys: ['Ctrl+S'], run: () => void useEditors.getState().save(), global: true },
@@ -111,6 +130,7 @@ export const COMMANDS: Command[] = [
   { id: 'file.closeAll', title: 'Close All Tabs', category: 'File', keys: ['Ctrl+Shift+F4'], run: () => void closeAllTabs() },
   { id: 'file.closeWorkspace', title: 'Close Workspace', category: 'File', run: closeWorkspace },
   { id: 'file.reloadProjects', title: 'Reload Projects', category: 'File', run: needsRoot(() => useWorkspace.getState().reload()) },
+  { id: 'project.properties', title: 'Project Properties…', category: 'File', run: needsRoot(openCurrentProjectProperties) },
   { id: 'file.settings', title: 'Settings…', category: 'File', keys: ['Ctrl+Alt+S', 'Ctrl+,'], run: () => useUi.getState().set({ settingsOpen: true }), global: true },
   { id: 'file.powerSave', title: 'Toggle Power Save Mode', category: 'File', run: () => useSettings.getState().update({ powerSave: !useSettings.getState().prefs.powerSave }) },
   { id: 'file.unloadOtherProjects', title: 'Unload All Projects but the Run Configuration', category: 'File', run: needsRoot(unloadOtherProjects) },
@@ -228,6 +248,7 @@ export const COMMANDS: Command[] = [
   { id: 'code.inspect', title: 'Inspect Code (whole solution)', category: 'Code', run: needsRoot(() => inspectSolution()) },
   { id: 'view.inspections', title: 'Inspection Results', category: 'View', run: () => useUi.getState().showBottom('inspections') },
   { id: 'code.cleanup', title: 'Code Cleanup (this file)', category: 'Code', keys: ['Ctrl+Alt+Shift+L'], run: () => void codeCleanup() },
+  { id: 'code.generate', title: 'Generate…', category: 'Code', keys: ['Alt+Insert'], run: () => void generateMenu(getEditor()), when: csharpEditorFocused },
   { id: 'code.surround', title: 'Surround With…', category: 'Code', keys: ['Ctrl+Alt+T'], run: () => void withEditor(surroundWith) },
   { id: 'code.replace', title: 'Replace in File', category: 'Code', keys: ['Ctrl+R'], run: () => editorAction('editor.action.startFindReplaceAction'), when: editorFocused },
   { id: 'code.toggleInlayHints', title: 'Toggle Inlay Hints', category: 'Code', run: () => useSettings.getState().update({ inlayHints: !useSettings.getState().prefs.inlayHints }) },
@@ -239,14 +260,25 @@ export const COMMANDS: Command[] = [
   { id: 'refactor.changeSignature', title: 'Change Signature…', category: 'Refactor', keys: ['Ctrl+F6'], run: () => void changeSignature(getEditor()) },
   { id: 'refactor.safeDelete', title: 'Safe Delete…', category: 'Refactor', keys: ['Alt+Delete'], run: () => void safeDelete(getEditor()) },
   { id: 'refactor.extractInterface', title: 'Extract Interface…', category: 'Refactor', run: () => void extractInterface(getEditor()) },
+  { id: 'refactor.inline', title: 'Inline…', category: 'Refactor', keys: ['Ctrl+Alt+N'], run: () => void inline(getEditor()) },
+  { id: 'refactor.moveType', title: 'Move Type to Another File / Folder…', category: 'Refactor', run: () => void moveType(getEditor()) },
+  { id: 'refactor.pullUp', title: 'Pull Members Up…', category: 'Refactor', run: () => void pullMembersUp(getEditor()) },
+  { id: 'refactor.pushDown', title: 'Push Members Down…', category: 'Refactor', run: () => void pushMembersDown(getEditor()) },
+  { id: 'refactor.extractClass', title: 'Extract Class…', category: 'Refactor', run: () => void extractClass(getEditor()) },
 
   // Build / Run
   { id: 'build.build', title: 'Build Solution', category: 'Build', keys: ['Ctrl+Shift+B', 'Ctrl+F9'], run: needsRoot(() => dotnetBuild('build')), global: true },
   { id: 'build.rebuild', title: 'Rebuild Solution', category: 'Build', run: needsRoot(() => dotnetBuild('rebuild')) },
   { id: 'build.clean', title: 'Clean Solution', category: 'Build', run: needsRoot(() => dotnetBuild('clean')) },
   { id: 'build.restore', title: 'Restore NuGet Packages', category: 'Build', run: needsRoot(() => dotnetBuild('restore')) },
-  { id: 'run.run', title: 'Run', category: 'Run', keys: ['Shift+F10', 'Ctrl+F5'], run: needsRoot(() => dotnetRun()), global: true },
-  { id: 'run.debug', title: 'Debug / Resume', category: 'Run', keys: ['F5', 'Shift+F9'], run: needsRoot(() => startDebugging()), global: true },
+  { id: 'run.run', title: 'Run', category: 'Run', keys: ['Shift+F10', 'Ctrl+F5'], run: needsRoot(() => runConfig()), global: true },
+  { id: 'run.debug', title: 'Debug / Resume', category: 'Run', keys: ['F5', 'Shift+F9'], run: needsRoot(() => (useDebug.getState().status === 'stopped' ? step('continue') : debugConfig())), global: true },
+  { id: 'run.editConfigs', title: 'Edit Configurations…', category: 'Run', keys: ['Alt+Shift+F10'], run: needsRoot(() => useRunConfigs.setState({ editing: true })), global: true },
+  { id: 'debug.attach', title: 'Attach to Process…', category: 'Debug', keys: ['Ctrl+Alt+F5'], run: () => useDebug.setState({ attachOpen: true }), global: true },
+  { id: 'debug.runToCursor', title: 'Run to Cursor', category: 'Debug', keys: ['Alt+F9'], run: () => { const ed = getEditor(); const path = pathOfModel(ed?.getModel()); const pos = ed?.getPosition(); if (path && pos) void runToCursor(path, pos.lineNumber); }, when: debugActive },
+  { id: 'debug.editBreakpoint', title: 'Edit Breakpoint…', category: 'Debug', keys: ['Ctrl+Shift+F8'], run: () => { const ed = getEditor(); const path = pathOfModel(ed?.getModel()); const pos = ed?.getPosition(); if (path && pos) useDebug.setState({ editing: { path, line: pos.lineNumber } }); } },
+  { id: 'debug.breakOnAll', title: 'Break on All Exceptions (toggle)', category: 'Debug', run: () => toggleExceptionFilter('all') },
+  { id: 'debug.breakOnUnhandled', title: 'Break on User-Unhandled Exceptions (toggle)', category: 'Debug', run: () => toggleExceptionFilter('user-unhandled') },
   { id: 'run.stop', title: 'Stop', category: 'Run', keys: ['Shift+F5', 'Ctrl+F2'], run: () => (debugActive() ? void stopDebugging() : stopAll('run')), global: true },
   { id: 'debug.stepOver', title: 'Step Over', category: 'Debug', keys: ['F10', 'F8'], run: () => void step('next'), global: true, when: debugActive },
   { id: 'debug.stepInto', title: 'Step Into', category: 'Debug', keys: ['F11', 'F7'], run: () => void step('stepIn'), global: true, when: debugActive },
@@ -264,6 +296,8 @@ export const COMMANDS: Command[] = [
   // Git
   { id: 'view.commit', title: 'Commit', category: 'Git', keys: ['Alt+0', 'Ctrl+K Ctrl+C'], run: () => useUi.getState().showDock('commit'), global: true },
   { id: 'view.git', title: 'Git Log', category: 'Git', keys: ['Alt+9'], run: () => useUi.getState().showBottom('git'), global: true },
+  { id: 'view.pulls', title: 'Pull Requests', category: 'Git', run: () => useUi.getState().showBottom('pulls') },
+  { id: 'git.createPr', title: 'Create Pull Request…', category: 'Git', run: needsRoot(() => showCreatePullRequest()) },
   { id: 'git.push', title: 'Push…', category: 'Git', keys: ['Ctrl+Shift+K'], run: needsRoot(() => gitPush()), global: true },
   { id: 'git.pull', title: 'Update Project (Pull)', category: 'Git', run: needsRoot(() => gitPull()) },
   { id: 'git.fetch', title: 'Fetch', category: 'Git', run: needsRoot(() => gitFetch()) },
@@ -319,6 +353,12 @@ function newItemDir(): string {
 
 function editorFocused(): boolean {
   return !!getEditor()?.hasTextFocus();
+}
+
+/** A C# file's editor has the keyboard: Alt+Insert is Generate there, New C# Class elsewhere. */
+function csharpEditorFocused(): boolean {
+  const ed = getEditor();
+  return !!ed?.hasTextFocus() && ed.getModel()?.getLanguageId() === 'csharp';
 }
 
 function withEditor(fn: (ed: NonNullable<ReturnType<typeof getEditor>>) => unknown): void {

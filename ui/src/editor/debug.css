@@ -44,3 +44,17 @@
 .kod-frame-glyph::after {
   opacity: 0.55;
 }
+/* a logpoint: a diamond; a disabled breakpoint: hollow and faint */
+.kod-bp.log::before {
+  border-radius: 1px;
+  transform: rotate(45deg) scale(0.85);
+  background: var(--bp-log, #e5a50a);
+}
+.kod-bp.off::before {
+  background: transparent;
+  border: 2px solid var(--fg-disabled, #888);
+  box-sizing: border-box;
+}
+.kod-bp-line.off {
+  background: none;
+}

@@ -64,6 +64,7 @@ export const useProcs = create<ProcsState>((set, get) => ({
       let text = p.text + e.text;
       if (text.length > MAX_TEXT) text = text.slice(text.length - MAX_TEXT);
       set((s) => ({ procs: { ...s.procs, [e.id]: { ...p, text } } }));
+      if (p.info.kind === 'run' && p.info.commandLine.startsWith('dotnet watch')) hotReloadNotice(stripAnsi(e.text));
       if (p.info.kind === 'run' && !urlShown.has(e.id)) {
         const m = /Now listening on:\s*(https?:\/\/\S+)/.exec(stripAnsi(text));
         if (m) {
@@ -228,24 +229,54 @@ export async function dotnetTest(projectPath?: string, filter?: string): Promise
   return runAndWait({ kind: 'test', title: `Test ${basename(t.path)}`, file: 'dotnet', args, cwd: t.cwd });
 }
 
-export async function dotnetRun(projectPath?: string): Promise<ProcDto | null> {
+/** A run configuration's launch: its name (the Run tab's title), launch profile, arguments, variables, folder, Hot Reload. */
+export interface RunOptions {
+  title?: string;
+  /** A launchSettings.json profile; undefined: the one `dotnet run` picks; null: none. */
+  profile?: string | null;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+  /** `dotnet watch`: saved edits are applied to the running app (a rude edit restarts it). */
+  hotReload?: boolean;
+}
+
+/** Run tab title → process, so a rerun stops the previous instance of the same configuration. */
+const runByTitle = new Map<string, string>();
+
+export async function dotnetRun(projectPath?: string, opts: RunOptions = {}): Promise<ProcDto | null> {
   const project = projectPath ? useWorkspace.getState().ws.projects.find((p) => p.path === projectPath) : startupProject();
   const path = project?.path ?? projectPath;
   if (!path) {
     toast('warning', 'Nothing to run', 'Open a project with an executable (console, web, worker) first.');
     return null;
   }
-  // one instance per project, like Rider's "Stop and rerun"
-  const running = Object.values(useProcs.getState().procs).find((p) => p.info.kind === 'run' && p.info.exitCode == null && p.info.cwd === dirname(path));
-  if (running) {
+  const title = opts.title ?? project?.name ?? basename(path);
+  // one instance per configuration, like Rider's "Stop and rerun"
+  const prev = runByTitle.get(title);
+  const running = prev ? useProcs.getState().procs[prev] : undefined;
+  if (running && running.info.exitCode == null) {
     await useProcs.getState().stop(running.info.id);
     await new Promise((r) => setTimeout(r, 400));
   }
   await beforeBuild();
   useUi.getState().showBottom('run');
-  const name = project?.name ?? basename(path);
-  const info = await useProcs.getState().start({ kind: 'run', title: name, file: 'dotnet', args: ['run', '--project', path], cwd: dirname(path), env: { ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_ENVIRONMENT: 'Development' } });
+  const profile = opts.profile === null ? ['--no-launch-profile'] : opts.profile ? ['--launch-profile', opts.profile] : [];
+  const program = opts.args?.length ? ['--', ...opts.args] : [];
+  const args = opts.hotReload ? ['watch', '--non-interactive', 'run', '--project', path, ...profile, ...program] : ['run', '--project', path, ...profile, ...program];
+  const env: Record<string, string> = { ASPNETCORE_ENVIRONMENT: 'Development', DOTNET_ENVIRONMENT: 'Development', ...opts.env };
+  // Kod offers the URL itself; a rude edit restarts instead of asking on the console
+  if (opts.hotReload) Object.assign(env, { DOTNET_WATCH_RESTART_ON_RUDE_EDIT: 'true', DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: '1', DOTNET_WATCH_SUPPRESS_EMOJIS: '1' });
+  const info = await useProcs.getState().start({ kind: 'run', title, file: 'dotnet', args, cwd: opts.cwd || dirname(path), env });
+  if (info) runByTitle.set(title, info.id);
   return info;
+}
+
+/** dotnet watch's report on a save: applied, or restarting after an edit Hot Reload cannot apply. */
+function hotReloadNotice(text: string): void {
+  if (/Hot reload (of changes )?succeeded|changes applied in/i.test(text)) toast('success', 'Hot Reload: changes applied', undefined, 2500);
+  else if (/compilation errors|build failed/i.test(text)) toast('warning', 'Hot Reload: the change does not build', 'Fix the errors and save again.', 4000);
+  else if (/rude edit|restart is needed|restarting|unable to apply/i.test(text)) toast('info', 'Hot Reload: restarting the app', 'The change cannot be applied to the running app.', 4000);
 }
 
 export function stopAll(kind?: ProcGroup): void {

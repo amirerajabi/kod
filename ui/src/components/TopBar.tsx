@@ -1,7 +1,10 @@
 import { useDebug } from '../store/debug';
 import { useGit } from '../store/git';
 import { showBranchMenu } from './GitBranchMenu';
-import { Bug, GitBranch, ChevronDown, FlaskConical, FolderOpen, Hammer, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Sparkles, Square, Sun, SunMoon } from 'lucide-react';
+import { Bug, GitBranch, ChevronDown, FlaskConical, FolderOpen, Hammer, Layers, Menu as MenuIcon, Moon, PanelBottom, PanelLeft, Play, Search, Settings, Settings2, Sparkles, Square, Sun, SunMoon } from 'lucide-react';
+import { activeConfig, allConfigs, useRunConfigs } from '../store/runConfigs';
+import { RunConfigsDialog } from './RunConfigsDialog';
+import { AttachDialog, BreakpointDialog } from './DebugDialogs';
 import { openWorkspace } from '../app/actions';
 import { runCommand, shortcutOf } from '../app/commands';
 import { appMenu } from '../app/menus';
@@ -32,7 +35,13 @@ export function TopBar() {
   const gitBranch = useGit((s) => s.status?.branch);
   const running = runningOf('run');
   const building = runningOf('build');
+  useRunConfigs((s) => s.saved);
+  useRunConfigs((s) => s.activeId);
+  const editingConfigs = useRunConfigs((s) => s.editing);
+  const configs = allConfigs();
+  const config = activeConfig();
   const project = ws.projects.find((p) => samePath(p.path, startup));
+  const canRun = !!config && (config.type === 'compound' || !!project?.runnable);
   const hasRoot = !!ws.root;
   const ThemeIcon = theme === 'system' ? SunMoon : effectiveTheme() === 'dark' ? Moon : Sun;
   const nextTheme = theme === 'dark' ? 'light' : theme === 'light' ? 'system' : 'dark';
@@ -46,17 +55,19 @@ export function TopBar() {
   ];
 
   const runMenu = (): MenuItem[] => {
-    // only what Run can start (Rider lists run configurations, not every project); tests run from the Unit Tests window
-    const items: MenuItem[] = ws.projects
-      .filter((p) => p.runnable)
-      .map((p) => ({
-        label: p.name,
-        icon: <FileIcon path={p.path} size={14} />,
-        checked: samePath(p.path, startup),
-        shortcut: p.kind,
-        run: () => useWorkspace.getState().setStartup(p.path),
-      }));
-    return items.length ? items : [{ label: ws.state === 'loading' ? 'Loading projects…' : ws.projects.length ? 'No runnable projects' : 'No projects', disabled: true }];
+    // run configurations (one generated per runnable project, plus the user's); tests run from the Unit Tests window
+    const items: MenuItem[] = configs.map((c) => ({
+      label: c.name,
+      icon: c.type === 'compound' ? <Layers size={14} /> : <FileIcon path={c.project ?? ''} size={14} />,
+      checked: c.id === config?.id,
+      shortcut: c.type === 'compound' ? 'compound' : c.hotReload ? 'hot reload' : ws.projects.find((p) => samePath(p.path, c.project))?.kind,
+      run: () => useRunConfigs.getState().setActive(c.id),
+    }));
+    return [
+      ...(items.length ? items : [{ label: ws.state === 'loading' ? 'Loading projects…' : ws.projects.length ? 'No runnable projects' : 'No projects', disabled: true } as MenuItem]),
+      'separator',
+      { label: 'Edit Configurations…', icon: <Settings2 size={14} />, run: () => runCommand('run.editConfigs') },
+    ];
   };
 
   return (
@@ -100,22 +111,22 @@ export function TopBar() {
       {hasRoot && (
         <>
           <button className="run-config" title="Run configuration" onClick={(e) => showMenuBelow(e.currentTarget, runMenu())}>
-            {project ? <FileIcon path={project.path} size={14} /> : null}
-            <span>{project?.name ?? (ws.state === 'loading' ? 'Loading…' : 'No project')}</span>
+            {config?.type === 'compound' ? <Layers size={14} /> : config?.project ? <FileIcon path={config.project} size={14} /> : null}
+            <span>{config?.name ?? (ws.state === 'loading' ? 'Loading…' : 'No project')}</span>
             <ChevronDown size={13} className="muted" />
           </button>
           <button className="icon-btn build" title={tip('Build', 'build.build')} disabled={building.length > 0} onClick={() => runCommand('build.build')}>
             <Hammer size={16} />
           </button>
-          <button className="icon-btn run" title={tip(running.length ? 'Rerun' : 'Run', 'run.run')} disabled={!project?.runnable} onClick={() => runCommand('run.run')}>
+          <button className="icon-btn run" title={tip(running.length ? 'Rerun' : 'Run', 'run.run')} disabled={!canRun} onClick={() => runCommand('run.run')}>
             <Play size={16} />
           </button>
           <button
             className={`icon-btn${debugStatus !== 'idle' ? ' on' : ''}`}
             title={debugStatus === 'stopped' ? 'Resume (F5)' : tip('Debug', 'run.debug')}
-            disabled={!project?.runnable || debugStatus === 'building' || debugStatus === 'starting' || debugStatus === 'running'}
+            disabled={!canRun || debugStatus === 'building' || debugStatus === 'starting' || debugStatus === 'running'}
             onClick={() => runCommand('run.debug')}
-            style={{ color: project?.runnable ? 'var(--warning)' : undefined }}
+            style={{ color: canRun ? 'var(--warning)' : undefined }}
           >
             <Bug size={16} />
           </button>
@@ -137,6 +148,9 @@ export function TopBar() {
       <button className="icon-btn" title={tip('Settings', 'file.settings')} onClick={() => runCommand('file.settings')}>
         <Settings size={16} />
       </button>
+      {editingConfigs && <RunConfigsDialog />}
+      <BreakpointDialog />
+      <AttachDialog />
     </header>
   );
 }

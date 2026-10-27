@@ -1,9 +1,10 @@
-import { ArrowDownToLine, ArrowUpFromLine, Bug, ChevronDown, ChevronRight, CircleDot, Eraser, LoaderCircle, Pause, Play, RotateCw, Square, StepForward, Trash2 } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Bug, ChevronDown, ChevronRight, CircleDot, Eraser, LoaderCircle, Pause, Pencil, Play, Plug, RotateCw, Square, StepForward, Trash2, Zap } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { keyLabel } from '../app/commands';
 import { basename } from '../lib/paths';
-import { evaluate, startDebugging, step, stopDebugging, useDebug, type Variable } from '../store/debug';
+import { evaluate, restartDebugging, setVariable, step, stopDebugging, useDebug, type ExceptionFilter, type Variable } from '../store/debug';
+import { showMenuBelow } from './common/Menu';
 import { useEditors } from '../store/editors';
 import { canVisualize, visualize } from './VisualizerDialog';
 import { DiagnosticsView } from './DiagnosticsView';
@@ -15,6 +16,8 @@ export function DebugPanel() {
   const reason = useDebug((s) => s.reason);
   const frames = useDebug((s) => s.frames);
   const frameId = useDebug((s) => s.frameId);
+  const exception = useDebug((s) => s.exception);
+  const filters = useDebug((s) => s.exceptionFilters);
   const stopped = status === 'stopped';
   const active = status !== 'idle';
   const [pane, setPane] = useState<'variables' | 'diagnostics'>('variables');
@@ -43,16 +46,27 @@ export function DebugPanel() {
         <button className="icon-btn sm stop" title="Stop (Shift+F5)" disabled={!active} onClick={() => void stopDebugging()}>
           <Square size={12} />
         </button>
+        <button className="icon-btn sm" title="Restart" disabled={!active} onClick={() => void restartDebugging()}>
+          <RotateCw size={14} />
+        </button>
+        <div className="topbar-sep" />
+        <button className="icon-btn sm" title={`Attach to Process… (${keyLabel('Ctrl+Alt+F5')})`} onClick={() => useDebug.setState({ attachOpen: true })}>
+          <Plug size={14} />
+        </button>
         <button
-          className="icon-btn sm"
-          title="Restart"
-          disabled={!active}
-          onClick={async () => {
-            await stopDebugging();
-            void startDebugging();
+          className={`icon-btn sm${filters.length ? ' on' : ''}`}
+          title={`Break on exceptions: ${filters.length ? filters.join(', ') : 'off'}`}
+          onClick={(e) => {
+            const set = (f: ExceptionFilter, on: boolean) => useDebug.getState().setExceptionFilters(on ? [...new Set([...filters, f])] : filters.filter((x) => x !== f));
+            showMenuBelow(e.currentTarget, [
+              { label: 'Break on exceptions', disabled: true },
+              'separator',
+              { label: 'User-unhandled (not caught by your code)', checked: filters.includes('user-unhandled'), run: () => set('user-unhandled', !filters.includes('user-unhandled')) },
+              { label: 'All thrown exceptions', checked: filters.includes('all'), run: () => set('all', !filters.includes('all')) },
+            ]);
           }}
         >
-          <RotateCw size={14} />
+          <Zap size={14} />
         </button>
         <div className="topbar-sep" />
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 'var(--text-sm)' }}>
@@ -65,7 +79,15 @@ export function DebugPanel() {
               <LoaderCircle size={13} className="spin" /> {status === 'building' ? 'Building' : 'Starting'} {program}…
             </>
           ) : stopped ? (
-            <span style={{ color: 'var(--warning)' }}>Paused{reason ? ` (${reason})` : ''} — {program}</span>
+            <span style={{ color: 'var(--warning)' }} title={exception?.message}>
+              Paused{reason ? ` (${reason})` : ''} — {program}
+              {exception && (
+                <span style={{ color: 'var(--danger-text)', marginLeft: 8 }}>
+                  {exception.type}
+                  {exception.message ? `: ${exception.message}` : ''}
+                </span>
+              )}
+            </span>
           ) : (
             <span style={{ color: 'var(--success)' }}>Running — {program}</span>
           )}
@@ -131,7 +153,7 @@ function Scopes({ frameId }: { frameId: number }) {
   return (
     <>
       {scopes.map((s, i) => (
-        <VarNode key={`${seq}:${frameId}:${s.name}`} v={{ name: s.name, value: '', variablesReference: s.variablesReference }} depth={0} open={i === 0} scope />
+        <VarNode key={`${seq}:${frameId}:${s.name}`} v={{ name: s.name, value: '', variablesReference: s.variablesReference }} depth={0} open={i === 0} scope parentRef={0} />
       ))}
     </>
   );
@@ -146,9 +168,23 @@ function exprOf(v: Variable, parent: string | null): string {
 
 const PSEUDO = new Set(['Static members', 'Non-Public members', 'Raw View', 'Results View']);
 
-function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent = null }: { v: Variable; depth: number; open?: boolean; scope?: boolean; parent?: string | null }) {
+/** A variable; double-click (or the pencil) gives it a new value — <paramref name="parentRef"/> is the container the debugger sets it in. */
+function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent = null, parentRef }: { v: Variable; depth: number; open?: boolean; scope?: boolean; parent?: string | null; parentRef: number }) {
   const [open, setOpen] = useState(initiallyOpen);
   const [children, setChildren] = useState<Variable[] | null>(null);
+  const [value, setValue] = useState(v.value);
+  const [edit, setEdit] = useState<string | null>(null);
+  const editable = !scope && parentRef > 0 && !PSEUDO.has(v.name);
+  const commit = async () => {
+    const text = edit?.trim();
+    setEdit(null);
+    if (!text || text === value) return;
+    const r = await setVariable(parentRef, v.name, text);
+    if (r !== null) {
+      setValue(r);
+      setChildren(null);
+    }
+  };
   useEffect(() => {
     if (!open || children || !v.variablesReference) return;
     api.post<Variable[]>('/debug/variables', { reference: v.variablesReference }).then(setChildren, () => setChildren([]));
@@ -164,10 +200,47 @@ function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent 
         {!scope && (
           <>
             <span className="muted">=</span>
-            <span className="text" style={{ color: /^".*"$/.test(v.value) ? 'var(--syn-string)' : /^-?\d/.test(v.value) ? 'var(--syn-number)' : 'var(--fg)' }}>
-              {v.value}
-            </span>
+            {edit !== null ? (
+              <input
+                className="input mono var-edit"
+                value={edit}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setEdit(e.target.value)}
+                onBlur={() => setEdit(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') void commit();
+                  else if (e.key === 'Escape') setEdit(null);
+                  e.stopPropagation();
+                }}
+                spellCheck={false}
+              />
+            ) : (
+              <span
+                className="text"
+                style={{ color: /^".*"$/.test(value) ? 'var(--syn-string)' : /^-?\d/.test(value) ? 'var(--syn-number)' : 'var(--fg)' }}
+                onDoubleClick={(e) => {
+                  if (!editable) return;
+                  e.stopPropagation();
+                  setEdit(value);
+                }}
+              >
+                {value}
+              </span>
+            )}
             {v.type && <span className="loc">{v.type}</span>}
+            {editable && edit === null && (
+              <button
+                className="vis-link var-set"
+                title="Set value (or double-click it): an expression, e.g. 42, &quot;text&quot;, null"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEdit(value);
+                }}
+              >
+                <Pencil size={11} />
+              </button>
+            )}
             {expr && canVisualize(v) && (
               <button
                 className="vis-link"
@@ -183,7 +256,7 @@ function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent 
           </>
         )}
       </div>
-      {open && children?.map((c, i) => <VarNode key={`${c.name}:${i}`} v={c} depth={depth + 1} parent={expr} />)}
+      {open && children?.map((c, i) => <VarNode key={`${c.name}:${i}`} v={c} depth={depth + 1} parent={expr} parentRef={v.variablesReference} />)}
     </>
   );
 }
@@ -202,16 +275,43 @@ function BreakpointList() {
       <div className="result-list" style={{ flex: '0 1 auto', maxHeight: '40%' }}>
         {all.length === 0 && <div className="muted" style={{ padding: '0 12px 8px', fontSize: 'var(--text-xs)' }}>Click the gutter or press F9 to add one</div>}
         {all.map((b) => (
-          <div key={`${b.path}:${b.line}`} className="result-item" style={{ paddingLeft: 10 }} onClick={() => void useEditors.getState().open(b.path, { line: b.line })}>
-            <CircleDot size={12} style={{ color: '#e5484d' }} />
-            <span className="msg">
+          <div
+            key={`${b.path}:${b.line}`}
+            className={`result-item${b.enabled === false ? ' bp-off' : ''}`}
+            style={{ paddingLeft: 6 }}
+            onClick={() => void useEditors.getState().open(b.path, { line: b.line })}
+            onDoubleClick={() => useDebug.setState({ editing: { path: b.path, line: b.line } })}
+          >
+            <input
+              type="checkbox"
+              checked={b.enabled !== false}
+              title={b.enabled === false ? 'Enable' : 'Disable'}
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => useDebug.getState().update(b.path, b.line, { enabled: e.target.checked ? undefined : false })}
+            />
+            <CircleDot size={12} style={{ color: b.suspend === false ? '#e5a50a' : '#e5484d' }} />
+            <span className="msg" style={{ flexShrink: 0 }}>
               {basename(b.path)}:{b.line}
             </span>
-            {b.condition && <span className="loc">{b.condition}</span>}
+            {(b.condition || b.hitCondition || b.logMessage) && (
+              <span className="loc" style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={[b.condition && `when ${b.condition}`, b.hitCondition && `hit ${b.hitCondition}`, b.logMessage && `log "${b.logMessage}"`].filter(Boolean).join(', ')}>
+                {[b.condition, b.hitCondition && `hit ${b.hitCondition}`, b.logMessage && `“${b.logMessage}”`].filter(Boolean).join(' · ')}
+              </span>
+            )}
+            <button
+              className="icon-btn sm"
+              title="Edit (condition, hit count, log message)"
+              style={{ marginLeft: 'auto' }}
+              onClick={(e) => {
+                e.stopPropagation();
+                useDebug.setState({ editing: { path: b.path, line: b.line } });
+              }}
+            >
+              <Pencil size={11} />
+            </button>
             <button
               className="icon-btn sm"
               title="Remove"
-              style={{ marginLeft: 'auto' }}
               onClick={(e) => {
                 e.stopPropagation();
                 useDebug.getState().toggle(b.path, b.line);

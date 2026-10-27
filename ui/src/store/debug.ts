@@ -13,7 +13,30 @@ import { startupProject, useWorkspace } from './workspace';
 export interface Breakpoint {
   line: number;
   condition?: string;
+  /** "N" (the Nth hit), ">= N", "> N", "% N" (every Nth). */
+  hitCondition?: string;
+  /** Printed on a hit, {expressions} evaluated in the frame. */
+  logMessage?: string;
+  /** Unset: pauses. False: only logs (a logpoint). */
+  suspend?: boolean;
+  /** Unset: enabled. Disabled ones stay in the gutter but are not sent to the debugger. */
+  enabled?: boolean;
+  /** Removed after the first hit. */
+  temporary?: boolean;
   verified?: boolean;
+}
+
+/** What the debugger is told about a breakpoint (verified is the debugger's answer, not ours). */
+const wire = (b: Breakpoint) => ({ line: b.line, condition: b.condition, hitCondition: b.hitCondition, logMessage: b.logMessage, suspend: b.suspend !== false });
+const saved = ({ verified: _v, ...b }: Breakpoint) => b;
+const sent = (bps: Breakpoint[]) => bps.filter((b) => b.enabled !== false);
+
+/** netcoredbg's exception filters: 'all' thrown exceptions, 'user-unhandled' ones user code does not catch. */
+export type ExceptionFilter = 'all' | 'user-unhandled';
+
+export interface StoppedException {
+  type?: string;
+  message?: string;
 }
 
 export interface Frame {
@@ -46,9 +69,18 @@ interface DebugState {
   breakpoints: Record<string, { path: string; bps: Breakpoint[] }>;
   /** Bumped on every stop, so variable views reload. */
   stopSeq: number;
+  /** The exception the program stopped on. */
+  exception: StoppedException | null;
+  exceptionFilters: ExceptionFilter[];
+  /** The breakpoint being edited (its properties dialog). */
+  editing: { path: string; line: number } | null;
+  attachOpen: boolean;
   set(p: Partial<DebugState>): void;
   toggle(path: string, line: number): void;
   setLines(path: string, bps: Breakpoint[]): void;
+  /** Changes one breakpoint's properties (adds it when missing). */
+  update(path: string, line: number, p: Partial<Breakpoint>): void;
+  setExceptionFilters(f: ExceptionFilter[]): void;
   clearAll(): void;
 }
 
@@ -61,7 +93,7 @@ function persist(b: DebugState['breakpoints']): void {
   const key = persistKey();
   if (!key) return;
   const all = loadRaw<Record<string, DebugState['breakpoints']>>('breakpoints', {});
-  all[key] = Object.fromEntries(Object.entries(b).map(([k, v]) => [k, { path: v.path, bps: v.bps.map((x) => ({ line: x.line, condition: x.condition })) }]));
+  all[key] = Object.fromEntries(Object.entries(b).map(([k, v]) => [k, { path: v.path, bps: v.bps.map(saved) }]));
   save('breakpoints', all);
 }
 
@@ -74,7 +106,21 @@ export const useDebug = create<DebugState>((set, get) => ({
   output: '',
   breakpoints: {},
   stopSeq: 0,
+  exception: null,
+  exceptionFilters: loadRaw<ExceptionFilter[]>('exceptionFilters', ['user-unhandled']),
+  editing: null,
+  attachOpen: false,
   set: (p) => set(p),
+  update: (path, line, p) => {
+    const cur = get().breakpoints[norm(path)]?.bps ?? [];
+    const bps = cur.some((b) => b.line === line) ? cur.map((b) => (b.line === line ? { ...b, ...p } : b)) : [...cur, { line, ...p }].sort((a, b) => a.line - b.line);
+    get().setLines(path, bps);
+  },
+  setExceptionFilters: (f) => {
+    set({ exceptionFilters: f });
+    save('exceptionFilters', f);
+    if (get().status !== 'idle') void api.post('/debug/exceptions', { filters: f }).catch(() => undefined);
+  },
   toggle: (path, line) => {
     const key = norm(path);
     const cur = get().breakpoints[key]?.bps ?? [];
@@ -100,11 +146,13 @@ export const useDebug = create<DebugState>((set, get) => ({
 
 async function syncFile(path: string, bps: Breakpoint[]): Promise<void> {
   try {
-    const verified = await api.post<{ line: number; verified: boolean }[]>('/debug/breakpoints', { path, breakpoints: bps.map((b) => ({ line: b.line, condition: b.condition })) });
+    const on = sent(bps);
+    const verified = await api.post<{ line: number; verified: boolean }[]>('/debug/breakpoints', { path, breakpoints: on.map(wire) });
     const cur = useDebug.getState().breakpoints[norm(path)];
     if (!cur) return;
+    const byLine = new Map(on.map((b, i) => [b.line, verified[i]?.verified]));
     useDebug.setState((s) => ({
-      breakpoints: { ...s.breakpoints, [norm(path)]: { ...cur, bps: cur.bps.map((b, i) => ({ ...b, verified: verified[i]?.verified ?? b.verified })) } },
+      breakpoints: { ...s.breakpoints, [norm(path)]: { ...cur, bps: cur.bps.map((b) => ({ ...b, verified: byLine.get(b.line) ?? b.verified })) } },
     }));
   } catch {
     /* session ended */
@@ -146,7 +194,20 @@ async function ensureAdapter(): Promise<boolean> {
   }
 }
 
-export async function startDebugging(projectPath?: string, opts: { docker?: boolean } = {}): Promise<void> {
+/** How a run configuration launches its project. */
+export interface LaunchOptions {
+  /** A launchSettings.json profile; undefined: the one `dotnet run` picks; null: none. */
+  profile?: string | null;
+  args?: string[];
+  env?: Record<string, string>;
+  cwd?: string;
+}
+
+let lastStart: { projectPath?: string; opts: { docker?: boolean; launch?: LaunchOptions } } = { opts: {} };
+
+const breakpointsForStart = () => Object.fromEntries(Object.values(useDebug.getState().breakpoints).map((v) => [v.path, sent(v.bps).map(wire)]));
+
+export async function startDebugging(projectPath?: string, opts: { docker?: boolean; launch?: LaunchOptions } = {}): Promise<void> {
   const d = useDebug.getState();
   if (d.status === 'stopped') return step('continue');
   if (d.status !== 'idle') return;
@@ -156,8 +217,9 @@ export async function startDebugging(projectPath?: string, opts: { docker?: bool
     return;
   }
   if (!opts.docker && !(await ensureAdapter())) return;
+  lastStart = { projectPath: project.path, opts };
   if (useSettings.getState().settings.saveBeforeBuild) await useEditors.getState().saveAll();
-  useDebug.setState({ status: 'building', output: '', frames: [], frameId: null, reason: null, program: project.name });
+  useDebug.setState({ status: 'building', output: '', frames: [], frameId: null, reason: null, exception: null, program: project.name });
   const built = await dotnetBuild('build', project.path);
   if (!built || built.exitCode !== 0) {
     useDebug.setState({ status: 'idle' });
@@ -166,12 +228,66 @@ export async function startDebugging(projectPath?: string, opts: { docker?: bool
   }
   useDebug.setState({ status: 'starting' });
   useUi.getState().showBottom('debug');
-  const breakpoints = Object.fromEntries(Object.values(useDebug.getState().breakpoints).map((v) => [v.path, v.bps.map((b) => ({ line: b.line, condition: b.condition }))]));
+  const l = opts.launch ?? {};
   try {
-    await api.post('/debug/start', { projectPath: project.path, breakpoints, docker: !!opts.docker });
+    await api.post('/debug/start', {
+      projectPath: project.path,
+      breakpoints: breakpointsForStart(),
+      docker: !!opts.docker,
+      profile: l.profile ?? undefined,
+      noProfile: l.profile === null,
+      args: l.args,
+      env: l.env,
+      cwd: l.cwd || undefined,
+      exceptionFilters: useDebug.getState().exceptionFilters,
+    });
   } catch (e) {
     useDebug.setState({ status: 'idle' });
     toast('error', 'Could not start debugging', errorText(e));
+  }
+}
+
+/** Debug again what was debugged last (the Debug window's Restart). */
+export async function restartDebugging(): Promise<void> {
+  await stopDebugging();
+  await startDebugging(lastStart.projectPath, lastStart.opts);
+}
+
+/** Attaches the debugger to a running .NET process. */
+export async function attachTo(pid: number, name: string): Promise<void> {
+  if (useDebug.getState().status !== 'idle') await stopDebugging();
+  if (!(await ensureAdapter())) return;
+  useDebug.setState({ status: 'starting', output: '', frames: [], frameId: null, reason: null, exception: null, program: name });
+  useUi.getState().showBottom('debug');
+  try {
+    await api.post('/debug/attach', { processId: pid, breakpoints: breakpointsForStart(), exceptionFilters: useDebug.getState().exceptionFilters });
+  } catch (e) {
+    useDebug.setState({ status: 'idle' });
+    toast('error', `Could not attach to ${name}`, errorText(e));
+  }
+}
+
+/** Resumes until the caret's line (Rider's Run to Cursor). */
+export async function runToCursor(path: string, line: number): Promise<void> {
+  if (useDebug.getState().status !== 'stopped') {
+    toast('info', 'Run to Cursor works while paused');
+    return;
+  }
+  try {
+    await api.post('/debug/runTo', { path, line });
+  } catch (e) {
+    toast('warning', 'Run to Cursor', errorText(e));
+  }
+}
+
+/** Gives a variable a new value (an expression the debugger evaluates); null when it refused. */
+export async function setVariable(reference: number, name: string, value: string): Promise<string | null> {
+  try {
+    const r = await api.post<{ result: string }>('/debug/setVariable', { reference, name, value });
+    return r.result;
+  } catch (e) {
+    toast('warning', `Could not set ${name}`, errorText(e));
+    return null;
   }
 }
 
@@ -207,13 +323,22 @@ export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
     case 'debug.state': {
       const state = e.state as string;
       const program = typeof e.program === 'string' ? basename(e.program).replace(/\.dll$/i, '') : useDebug.getState().program;
-      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program, ...(state === 'running' ? { frames: [], frameId: null } : {}) });
+      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program, ...(state === 'running' ? { frames: [], frameId: null, exception: null } : {}) });
       break;
     }
     case 'debug.stopped': {
       const frames = (e.frames as Frame[]) ?? [];
       const top = frames.find((f) => f.path) ?? frames[0];
-      useDebug.setState((s) => ({ status: 'stopped', reason: (e.reason as string) ?? null, frames, frameId: top?.id ?? null, stopSeq: s.stopSeq + 1 }));
+      const raw = (e.exception as StoppedException | null) ?? null;
+      const exception = raw && { ...raw, type: raw.type?.replace(/^CLR\//, '') };
+      useDebug.setState((s) => ({ status: 'stopped', reason: (e.reason as string) ?? null, frames, frameId: top?.id ?? null, stopSeq: s.stopSeq + 1, exception }));
+      if (exception) useDebug.setState((s) => ({ output: `${s.output}\n⚠ ${exception.type ?? 'Exception'}: ${exception.message ?? ''}\n` }));
+      // a temporary breakpoint goes once it is hit
+      const hit = e.breakpoint as { path: string; line: number } | null;
+      if (hit) {
+        const bp = useDebug.getState().breakpoints[norm(hit.path)];
+        if (bp?.bps.some((b) => b.line === hit.line && b.temporary)) useDebug.getState().setLines(bp.path, bp.bps.filter((b) => b.line !== hit.line));
+      }
       if (top?.path) void useEditors.getState().open(top.path, { line: top.line, column: top.column || 1 });
       useUi.getState().showBottom('debug');
       break;
@@ -226,7 +351,7 @@ export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
       });
       break;
     case 'debug.ended':
-      useDebug.setState({ status: 'idle', frames: [], frameId: null });
+      useDebug.setState({ status: 'idle', frames: [], frameId: null, exception: null });
       break;
   }
 }
