@@ -19,6 +19,7 @@ import { ShortcutSheet } from './components/ShortcutSheet';
 import { VisualizerDialog } from './components/VisualizerDialog';
 import { MemoryDialog } from './components/MemoryPanel';
 import { RecentChanges } from './components/RecentChanges';
+import { UsagesPopup } from './components/UsagesPopup';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { Welcome } from './components/Welcome';
@@ -63,6 +64,7 @@ export default function App() {
       <VisualizerDialog />
       <MemoryDialog />
       <RecentChanges />
+      <UsagesPopup />
       <NewProjectDialog />
       <RemotesDialog />
       <RefactorDialogs />

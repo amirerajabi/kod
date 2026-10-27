@@ -4,7 +4,7 @@
 import { api, isAbort } from '../api/client';
 import type { CodeVisionDto, CodeVisionEntryDto } from '../api/types';
 import { useSettings } from '../store/settings';
-import { findUsages, getEditor } from './CodeEditor';
+import { getEditor, showUsages } from './CodeEditor';
 import { pathOfModel } from './models';
 import { monaco } from './monaco';
 
@@ -80,7 +80,7 @@ export function registerCodeVision(): void {
     const ed = getEditor();
     if (!ed) return;
     ed.setPosition({ lineNumber: line, column });
-    void findUsages();
+    void showUsages();
   });
   monaco.editor.registerCommand('kod.codeVision.implementations', (_a, line: number, column: number) => {
     const ed = getEditor();

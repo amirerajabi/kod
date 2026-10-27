@@ -1,4 +1,4 @@
-import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Info, LoaderCircle, Minus, Plus, RotateCw, ScanSearch, Search, Square, Trash2 } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Info, LoaderCircle, Minus, Plus, RotateCw, ScanSearch, Square, Trash2 } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -8,7 +8,6 @@ import { useEditors } from '../store/editors';
 import { allProblems, countProblems, useProblems } from '../store/problems';
 import { dotnetBuild, dotnetRun, dotnetTest, groupOf, startTerminal, useProcs, type ProcGroup, type ProcView } from '../store/procs';
 import { useUi } from '../store/ui';
-import { useUsages } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
@@ -27,6 +26,7 @@ import { toolWindow, windowOfBottom } from './ToolStripe';
 import { HttpPanel } from './HttpPanel';
 import { EfPanel } from './EfPanel';
 import { CoveragePanel } from './CoveragePanel';
+import { UsagesPanel } from './UsagesPanel';
 
 export function BottomPanel() {
   const visible = useUi((s) => s.bottomVisible);
@@ -67,7 +67,7 @@ export function BottomPanel() {
           {tab === 'nuget' && <NugetWindow />}
           {tab === 'problems' && <ProblemsPane />}
           {tab === 'inspections' && <InspectionsPanel />}
-          {tab === 'usages' && <UsagesPane />}
+          {tab === 'usages' && <UsagesPanel />}
           {tab === 'hierarchy' && <HierarchyPanel />}
           {tab === 'todo' && <TodoPanel />}
           {tab === 'bookmarks' && <BookmarksPanel />}
@@ -325,57 +325,3 @@ function ProblemsPane() {
   );
 }
 
-// ---------------------------------------------------------------- usages
-
-function UsagesPane() {
-  const { title, items, loading } = useUsages();
-  const root = useWorkspace((s) => s.ws.root);
-  if (loading)
-    return (
-      <div className="panel-empty">
-        <LoaderCircle size={16} className="spin" /> Finding usages of {title}…
-      </div>
-    );
-  if (!title)
-    return (
-      <div className="panel-empty">
-        <Search size={18} />
-        <div>
-          Put the caret on a symbol and press <kbd>Alt+F7</kbd>.
-        </div>
-      </div>
-    );
-  const byFile = new Map<string, typeof items>();
-  for (const l of items) {
-    const k = norm(l.path);
-    if (!byFile.has(k)) byFile.set(k, []);
-    byFile.get(k)!.push(l);
-  }
-  return (
-    <>
-      <div className="console-toolbar">
-        <span>
-          <b>{title}</b> <span className="muted">— {items.filter((i) => !i.isDefinition).length} usages in {byFile.size} files</span>
-        </span>
-      </div>
-      <div className="result-list">
-        {[...byFile.values()].map((list) => (
-          <Fragment key={list[0].path}>
-            <div className="result-file" title={list[0].path}>
-              <FileIcon path={list[0].path} size={14} />
-              {basename(list[0].path)}
-              <span className="muted">{relative(root, dirname(list[0].path))}</span>
-            </div>
-            {list.map((l, i) => (
-              <div key={i} className="result-item" onClick={() => void useEditors.getState().open(l.path, { range: l.range, preview: true })}>
-                <span className="loc">{l.range.startLine}</span>
-                <span className="text">{l.preview}</span>
-                {l.isDefinition && <span className="badge">definition</span>}
-              </div>
-            ))}
-          </Fragment>
-        ))}
-      </div>
-    </>
-  );
-}

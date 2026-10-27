@@ -123,6 +123,7 @@ public static class Endpoints
         intel.MapPost("/definition", (DocRequest r, IntelService s, CancellationToken ct) => s.DefinitionAsync(r, ct));
         intel.MapPost("/implementations", (DocRequest r, IntelService s, CancellationToken ct) => s.ImplementationsAsync(r, ct));
         intel.MapPost("/references", (DocRequest r, IntelService s, CancellationToken ct) => s.ReferencesAsync(r, ct));
+        intel.MapPost("/usages", async (DocRequest r, IntelService s, CancellationToken ct) => await s.UsagesAsync(r, ct) is { } u ? Results.Ok(u) : Results.NoContent());
         intel.MapPost("/prepareRename", async (DocRequest r, IntelService s, CancellationToken ct) => await s.PrepareRenameAsync(r, ct) is { } p ? Results.Ok(p) : Results.NoContent());
         intel.MapPost("/rename", (RenameRequest r, IntelService s, CancellationToken ct) => s.RenameAsync(r, ct));
         intel.MapPost("/format", (RangeRequest r, IntelService s, CancellationToken ct) => s.FormatAsync(r, wholeDocument: true, ct));

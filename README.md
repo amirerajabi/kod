@@ -32,7 +32,7 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   for/foreach, try/catch/finally, using, lock, #region, braces, parentheses…).
 - **Inlay hints**: parameter names before literal arguments, inferred types of `var`, `foreach` and lambda parameters.
 - **Code Vision**: usages and implementations / inheritors / overrides above types and members, counted as they
-  scroll into view; click to find usages or go to implementations.
+  scroll into view; click to show usages or go to implementations.
 - **Hover** quick info, **parameter info** (overloads, active parameter, XML docs), **live diagnostics**
   (errors, warnings, unnecessary usings faded).
 - **Code inspections** while typing: Roslyn's IDE analyzers (unused members and parameters, redundant code,
@@ -40,8 +40,9 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - **Alt+Enter**: Roslyn's own code fixes (add `using`, generate method/type, implement interface, …) and
   refactorings (convert, introduce, extract, …); "Fix all in file / solution" and "Disable with #pragma".
 - **Navigation**: go to declaration (F12 / Ctrl+B / Ctrl+click), type declaration, implementation, base symbols
-  (Alt+Home), derived symbols (Alt+End), related files (Ctrl+Alt+Home), find usages (Alt+F7 tool window,
-  Shift+F12 peek), Navigate To (Ctrl+Shift+G), next / previous member (Alt+Down / Alt+Up), Back / Forward across
+  (Alt+Home), derived symbols (Alt+End), related files (Ctrl+Alt+Home), find usages (Alt+F7 Find window grouped by
+  usage type, project, folder, file and member, with read/write filters, preview and pinned tabs), **Show Usages**
+  (Ctrl+Alt+F7 popup at the caret with speed search; read, write, invocation, nameof... per usage), peek (Shift+F12), Navigate To (Ctrl+Shift+G), next / previous member (Alt+Down / Alt+Up), Back / Forward across
   files (Ctrl+Alt+Left / Right), Recent Files (Ctrl+E), Recent Locations (Ctrl+Shift+E), file structure, metadata
   view for framework types (generated declarations with docs).
 - **Call Hierarchy** (Ctrl+Alt+H: callers / callees) and **Type Hierarchy** (Ctrl+H: subtypes / supertypes) in the
@@ -255,7 +256,7 @@ git tag v0.2.1 && git push origin v0.2.1
 | Find action | Ctrl+Shift+A, Ctrl+Shift+P |
 | Context actions | Alt+Enter |
 | Completion / parameter info / quick doc | Ctrl+Space / Ctrl+Shift+Space / Ctrl+Q |
-| Declaration / implementation / usages | F12, Ctrl+B / Ctrl+Alt+B / Alt+F7, Shift+F12 |
+| Declaration / implementation / usages | F12, Ctrl+B / Ctrl+Alt+B / Alt+F7, Ctrl+Alt+F7, Shift+F12 |
 | Rename / reformat / code cleanup | F2, Shift+F6 / Ctrl+Alt+L / Ctrl+Alt+Shift+L |
 | Refactor This / change signature / safe delete | Ctrl+Shift+R / Ctrl+F6 / Alt+Delete |
 | Surround with / replace in file | Ctrl+Alt+T / Ctrl+R |
