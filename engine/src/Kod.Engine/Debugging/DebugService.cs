@@ -8,10 +8,29 @@ using Kod.Engine.Workspace;
 
 namespace Kod.Engine.Debugging;
 
-public sealed record BreakpointDto(int Line, string? Condition = null);
+/// <param name="HitCondition">"N" or "= N" (the Nth hit), "&gt;= N", "&gt; N", "% N" (every Nth); the engine counts, netcoredbg has no hit counts.</param>
+/// <param name="LogMessage">Printed to the console on a hit, {expressions} evaluated in the frame (netcoredbg has no logpoints either).</param>
+/// <param name="Suspend">False: log and go on without pausing.</param>
+public sealed record BreakpointDto(int Line, string? Condition = null, string? HitCondition = null, string? LogMessage = null, bool Suspend = true);
 
-/// <summary><see cref="Docker"/>: debug inside a container (Rider's fast mode, see <see cref="Kod.Engine.Docker.DockerService.PrepareDebugAsync"/>).</summary>
-public sealed record DebugStartRequest(string ProjectPath, Dictionary<string, List<BreakpointDto>>? Breakpoints, bool StopAtEntry = false, bool Docker = false);
+/// <summary><see cref="Docker"/>: debug inside a container (Rider's fast mode, see <see cref="Kod.Engine.Docker.DockerService.PrepareDebugAsync"/>).
+/// The rest come from the run configuration: launch profile (<see cref="NoProfile"/> ignores launchSettings.json), program arguments,
+/// environment variables, working directory.</summary>
+public sealed record DebugStartRequest(
+    string ProjectPath,
+    Dictionary<string, List<BreakpointDto>>? Breakpoints,
+    bool StopAtEntry = false,
+    bool Docker = false,
+    string? Profile = null,
+    bool NoProfile = false,
+    List<string>? Args = null,
+    Dictionary<string, string>? Env = null,
+    string? Cwd = null,
+    List<string>? ExceptionFilters = null);
+
+public sealed record AttachRequest(int ProcessId, Dictionary<string, List<BreakpointDto>>? Breakpoints, List<string>? ExceptionFilters = null);
+
+public sealed record DotnetProcessDto(int Id, string Name, string? Path, long? StartedAt, string? Title);
 
 public sealed record FrameDto(int Id, string Name, string? Path, int Line, int Column);
 
@@ -47,11 +66,13 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                       ?? throw new InvalidOperationException("The project is not loaded yet");
         var program = project.OutputFilePath ?? throw new InvalidOperationException("The project has no output assembly");
         if (!File.Exists(program)) throw new InvalidOperationException($"{System.IO.Path.GetFileName(program)} is not built yet");
-        var cwd = System.IO.Path.GetDirectoryName(req.ProjectPath)!;
+        var projectDir = System.IO.Path.GetDirectoryName(req.ProjectPath)!;
+        var cwd = string.IsNullOrWhiteSpace(req.Cwd) ? projectDir : req.Cwd!;
 
         Session s;
         string launchCwd = cwd;
-        var env = LaunchEnv(cwd);
+        var (env, profileArgs) = LaunchEnv(req.ProjectPath, req.NoProfile ? null : req.Profile ?? "", req.Env);
+        var args = req.Args is { Count: > 0 } ? req.Args : profileArgs;
         string? container = null;
         if (req.Docker)
         {
@@ -78,7 +99,14 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         };
         try
         {
-            await s.StartAsync(cwd, launchCwd, env, req.Breakpoints ?? [], req.StopAtEntry, ct);
+            var envObj = new JsonObject();
+            foreach (var (k, v) in env) envObj[k] = v;
+            var launch = new JsonObject
+            {
+                ["name"] = ".NET Launch", ["type"] = "coreclr", ["request"] = "launch", ["program"] = s.Program, ["args"] = new JsonArray(args.Select(a => (JsonNode?)a).ToArray()),
+                ["cwd"] = launchCwd, ["env"] = envObj, ["stopAtEntry"] = req.StopAtEntry, ["console"] = "internalConsole", ["justMyCode"] = true,
+            };
+            await s.StartAsync(projectDir, "launch", launch, req.Breakpoints ?? [], req.ExceptionFilters ?? [], ct);
             if (!req.Docker) _ = WatchAsync(s);
         }
         catch
@@ -87,6 +115,74 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
             throw;
         }
         return State();
+    }
+
+    /// <summary>Attaches to a running .NET process (Rider's Attach to Process); stopping detaches and leaves it running.</summary>
+    public async Task<object> AttachAsync(AttachRequest req, CancellationToken ct)
+    {
+        Stop();
+        var exe = adapter.Locate() ?? throw new InvalidOperationException("The debugger (netcoredbg) is not installed. Settings › Debugger downloads it.");
+        string name;
+        try
+        {
+            using var p = Process.GetProcessById(req.ProcessId);
+            name = p.ProcessName;
+        }
+        catch (ArgumentException)
+        {
+            throw new InvalidOperationException($"Process {req.ProcessId} is not running");
+        }
+        var s = new Session(exe, [], $"{name} ({req.ProcessId})", hub, log) { Attached = true };
+        lock (sync) session = s;
+        s.Ended += () =>
+        {
+            diagnostics.Stop();
+            lock (sync)
+                if (session == s) session = null;
+        };
+        try
+        {
+            var attach = new JsonObject { ["name"] = ".NET Attach", ["type"] = "coreclr", ["request"] = "attach", ["processId"] = req.ProcessId, ["justMyCode"] = true };
+            await s.StartAsync(Environment.CurrentDirectory, "attach", attach, req.Breakpoints ?? [], req.ExceptionFilters ?? [], ct);
+            diagnostics.Start(req.ProcessId);
+        }
+        catch
+        {
+            s.Dispose();
+            throw;
+        }
+        return State();
+    }
+
+    /// <summary>The .NET processes that can be attached to (those with a diagnostics endpoint), Kod's own engine left out.</summary>
+    public static IReadOnlyList<DotnetProcessDto> Processes()
+    {
+        var list = new List<DotnetProcessDto>();
+        foreach (var pid in Microsoft.Diagnostics.NETCore.Client.DiagnosticsClient.GetPublishedProcesses())
+        {
+            if (pid == Environment.ProcessId) continue;
+            try
+            {
+                using var p = Process.GetProcessById(pid);
+                string? path = null;
+                long? started = null;
+                try
+                {
+                    path = p.MainModule?.FileName;
+                    started = new DateTimeOffset(p.StartTime).ToUnixTimeMilliseconds();
+                }
+                catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException or NotSupportedException)
+                {
+                    // another user's or an elevated process
+                }
+                list.Add(new DotnetProcessDto(pid, p.ProcessName, path, started, string.IsNullOrEmpty(p.MainWindowTitle) ? null : p.MainWindowTitle));
+            }
+            catch (ArgumentException)
+            {
+                // exited meanwhile
+            }
+        }
+        return list.OrderBy(p => p.Name, StringComparer.OrdinalIgnoreCase).ThenBy(p => p.Id).ToList();
     }
 
     /// <summary>Live diagnostics on the program: its id from the debugger's process event, else netcoredbg's child.</summary>
@@ -103,29 +199,22 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         }
     }
 
-    /// <summary>ASP.NET Core apps get their development environment and the URL of their first launch profile.</summary>
-    private static Dictionary<string, string> LaunchEnv(string projectDir)
+    /// <summary>
+    /// The development environment, then the launch profile's URL, variables and arguments (<paramref name="profile"/>: a name,
+    /// "" for the one `dotnet run` picks, null for none), then the run configuration's own variables.
+    /// </summary>
+    private static (Dictionary<string, string> Env, List<string> Args) LaunchEnv(string projectPath, string? profile, Dictionary<string, string>? extra)
     {
         var env = new Dictionary<string, string> { ["ASPNETCORE_ENVIRONMENT"] = "Development", ["DOTNET_ENVIRONMENT"] = "Development" };
-        var settings = System.IO.Path.Combine(projectDir, "Properties", "launchSettings.json");
-        try
+        List<string> args = [];
+        if (profile is not null && Kod.Engine.Processes.LaunchProfiles.Pick(projectPath, profile.Length == 0 ? null : profile) is { } p)
         {
-            if (File.Exists(settings) && JsonNode.Parse(File.ReadAllText(settings), documentOptions: new JsonDocumentOptions { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true })?["profiles"] is JsonObject profiles)
-            {
-                foreach (var (_, p) in profiles)
-                {
-                    if ((string?)p?["commandName"] != "Project") continue;
-                    if ((string?)p?["applicationUrl"] is { } url) env["ASPNETCORE_URLS"] = url;
-                    if (p?["environmentVariables"] is JsonObject vars)
-                        foreach (var (k, v) in vars) env[k] = v?.ToString() ?? "";
-                    break;
-                }
-            }
+            if (p.ApplicationUrl is { } url) env["ASPNETCORE_URLS"] = url;
+            foreach (var (k, v) in p.Env) env[k] = v;
+            args = Kod.Engine.Processes.LaunchProfiles.SplitArgs(p.CommandLineArgs);
         }
-        catch (JsonException)
-        {
-        }
-        return env;
+        if (extra is not null) foreach (var (k, v) in extra) env[k] = v;
+        return (env, args);
     }
 
     internal Session Active() => session ?? throw new InvalidOperationException("No debug session");
@@ -139,6 +228,11 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
     public Task<EvaluateDto> EvaluateAsync(string expression, int? frameId, string context, CancellationToken ct) => Active().EvaluateAsync(expression, frameId, context, ct);
 
     public Task<VisualDto> VisualizeAsync(VisualizeRequest r, CancellationToken ct) => Visualizers.VisualizeAsync(Active(), r, ct);
+    public Task<EvaluateDto> SetVariableAsync(int reference, string name, string value, CancellationToken ct) => Active().SetVariableAsync(reference, name, value, ct);
+    public Task RunToAsync(string path, int line, CancellationToken ct) => Active().RunToAsync(PathUtil.Normalize(path), line, ct);
+
+    public Task SetExceptionFiltersAsync(List<string> filters, CancellationToken ct) =>
+        session is { } s ? s.SetExceptionFiltersAsync(filters, ct) : Task.CompletedTask;
 
     public void Stop()
     {
@@ -163,8 +257,15 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         private Process? proc;
         private int seq;
         private int disposed;
+        /// <summary>The breakpoints as the UI set them, by normalized path: hit counts and logpoints are matched against them.</summary>
+        private readonly ConcurrentDictionary<string, List<BreakpointDto>> breakpoints = new(StringComparer.OrdinalIgnoreCase);
+        private readonly ConcurrentDictionary<string, int> hits = new(StringComparer.OrdinalIgnoreCase);
+        /// <summary>Run to Cursor: a breakpoint of the engine's own, gone at the next stop.</summary>
+        private (string Path, int Line)? runTo;
 
         public string Program { get; } = program;
+        /// <summary>Attached to a process Kod did not start: stopping detaches.</summary>
+        public bool Attached { get; init; }
         public string State { get; private set; } = "starting";
         public int? StoppedThread { get; private set; }
         /// <summary>The program's process id, when the debugger reports it.</summary>
@@ -172,7 +273,8 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         public int? AdapterPid => proc?.Id;
         public event Action? Ended;
 
-        public async Task StartAsync(string hostCwd, string cwd, Dictionary<string, string> env, Dictionary<string, List<BreakpointDto>> breakpoints, bool stopAtEntry, CancellationToken ct)
+        /// <param name="request">"launch" or "attach", with its DAP arguments.</param>
+        public async Task StartAsync(string hostCwd, string request, JsonObject arguments, Dictionary<string, List<BreakpointDto>> initial, List<string> exceptionFilters, CancellationToken ct)
         {
             var psi = new ProcessStartInfo(exe)
             {
@@ -201,25 +303,24 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                 ["clientID"] = "kod", ["clientName"] = "Kod", ["adapterID"] = "coreclr", ["pathFormat"] = "path",
                 ["linesStartAt1"] = true, ["columnsStartAt1"] = true, ["supportsVariableType"] = true, ["supportsRunInTerminalRequest"] = false,
             }, ct);
-            var envObj = new JsonObject();
-            foreach (var (k, v) in env) envObj[k] = v;
-            var launch = RequestAsync("launch", new JsonObject
-            {
-                ["name"] = ".NET Launch", ["type"] = "coreclr", ["request"] = "launch", ["program"] = Program, ["args"] = new JsonArray(),
-                ["cwd"] = cwd, ["env"] = envObj, ["stopAtEntry"] = stopAtEntry, ["console"] = "internalConsole", ["justMyCode"] = true,
-            }, ct);
-            // netcoredbg answers 'initialized' once launch is under way: breakpoints, then configurationDone
-            var first = await Task.WhenAny(initialized.Task, launch, Task.Delay(TimeSpan.FromSeconds(30), ct));
-            if (first == launch) await launch; // a failed launch throws here
-            foreach (var (path, lines) in breakpoints) await SetBreakpointsAsync(path, lines, ct);
-            await RequestAsync("setExceptionBreakpoints", new JsonObject { ["filters"] = new JsonArray() }, ct);
+            var start = RequestAsync(request, arguments, ct);
+            // netcoredbg answers 'initialized' once launch / attach is under way: breakpoints, then configurationDone
+            var first = await Task.WhenAny(initialized.Task, start, Task.Delay(TimeSpan.FromSeconds(30), ct));
+            if (first == start) await start; // a failed launch throws here
+            foreach (var (path, lines) in initial) await SetBreakpointsAsync(path, lines, ct);
+            await SetExceptionFiltersAsync(exceptionFilters, ct);
             await RequestAsync("configurationDone", new JsonObject(), ct);
-            await launch;
+            await start;
             SetState("running");
         }
 
+        /// <summary>"all" (every thrown exception) and / or "user-unhandled" (not caught by user code).</summary>
+        public Task SetExceptionFiltersAsync(List<string> filters, CancellationToken ct) =>
+            RequestAsync("setExceptionBreakpoints", new JsonObject { ["filters"] = new JsonArray(filters.Select(f => (JsonNode?)f).ToArray()) }, ct);
+
         public async Task<IReadOnlyList<VerifiedBreakpointDto>> SetBreakpointsAsync(string path, List<BreakpointDto> lines, CancellationToken ct)
         {
+            breakpoints[PathUtil.Normalize(path)] = lines;
             var bps = new JsonArray();
             foreach (var b in lines)
             {
@@ -227,10 +328,33 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                 if (!string.IsNullOrWhiteSpace(b.Condition)) o["condition"] = b.Condition;
                 bps.Add(o);
             }
+            // the Run to Cursor line rides along last, so the UI's breakpoints keep their indexes
+            if (runTo is { } rt && PathUtil.Equal(rt.Path, path) && lines.All(b => b.Line != rt.Line)) bps.Add(new JsonObject { ["line"] = rt.Line });
             var body = await RequestAsync("setBreakpoints", new JsonObject { ["source"] = new JsonObject { ["path"] = path, ["name"] = System.IO.Path.GetFileName(path) }, ["breakpoints"] = bps }, ct);
             return body["breakpoints"] is JsonArray arr
-                ? arr.Select(x => new VerifiedBreakpointDto((int?)x?["line"] ?? 0, (bool?)x?["verified"] ?? false, (string?)x?["message"])).ToList()
+                ? arr.Take(lines.Count).Select(x => new VerifiedBreakpointDto((int?)x?["line"] ?? 0, (bool?)x?["verified"] ?? false, (string?)x?["message"])).ToList()
                 : [];
+        }
+
+        private Task ResendAsync(string path, CancellationToken ct) => SetBreakpointsAsync(path, breakpoints.GetValueOrDefault(PathUtil.Normalize(path)) ?? [], ct);
+
+        public async Task RunToAsync(string path, int line, CancellationToken ct)
+        {
+            if (State != "stopped") throw new InvalidOperationException("Run to Cursor works while paused");
+            if (runTo is { } old && !PathUtil.Equal(old.Path, path))
+            {
+                runTo = null;
+                await ResendAsync(old.Path, ct);
+            }
+            runTo = (path, line);
+            await ResendAsync(path, ct);
+            await StepAsync("continue", ct);
+        }
+
+        public async Task<EvaluateDto> SetVariableAsync(int reference, string name, string value, CancellationToken ct)
+        {
+            var body = await RequestAsync("setVariable", new JsonObject { ["variablesReference"] = reference, ["name"] = name, ["value"] = value }, ct);
+            return new EvaluateDto((string?)body["value"] ?? value, (string?)body["type"], (int?)body["variablesReference"] ?? 0);
         }
 
         public async Task StepAsync(string command, CancellationToken ct)
@@ -305,7 +429,106 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
             {
                 log.LogDebug(ex, "stackTrace failed");
             }
-            Publish("debug.stopped", new { reason = (string?)body["reason"], description = (string?)body["description"] ?? (string?)body["text"], threadId = thread, frames });
+            var reason = (string?)body["reason"];
+            var top = frames.FirstOrDefault();
+
+            object? hit = null;
+            var atRunTo = runTo is { } target && top?.Path is { } tp && PathUtil.Equal(tp, target.Path) && top.Line == target.Line;
+            if (reason == "breakpoint" && !atRunTo && top?.Path is { } path && Find(path, top.Line) is { } bp)
+            {
+                hit = new { path, line = bp.Line };
+                var n = hits.AddOrUpdate($"{PathUtil.Normalize(path)}:{bp.Line}", 1, (_, c) => c + 1);
+                if (!HitMatches(bp.HitCondition, n))
+                {
+                    await ResumeQuietlyAsync(thread);
+                    return;
+                }
+                if (!string.IsNullOrWhiteSpace(bp.LogMessage))
+                    Publish("debug.output", new { category = "log", text = await InterpolateAsync(bp.LogMessage, top.Id) + "\n" });
+                if (!bp.Suspend)
+                {
+                    await ResumeQuietlyAsync(thread);
+                    return;
+                }
+            }
+
+            // a stop that pauses ends a Run to Cursor (hits that go on, above, do not)
+            if (runTo is { } rt)
+            {
+                runTo = null;
+                await ResendAsync(rt.Path, CancellationToken.None);
+                if (atRunTo && reason == "breakpoint") reason = "run to cursor";
+            }
+
+            object? exception = null;
+            if (reason == "exception")
+            {
+                try
+                {
+                    var info = await RequestAsync("exceptionInfo", new JsonObject { ["threadId"] = thread }, CancellationToken.None);
+                    exception = new { type = (string?)info["exceptionId"], message = (string?)info["description"] ?? (string?)info["details"]?["message"], breakMode = (string?)info["breakMode"] };
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
+                {
+                    log.LogDebug(ex, "exceptionInfo failed");
+                }
+            }
+            SetState("stopped", publish: false);
+            Publish("debug.stopped", new { reason, description = (string?)body["description"] ?? (string?)body["text"], threadId = thread, frames, breakpoint = hit, exception });
+        }
+
+        private BreakpointDto? Find(string path, int line) =>
+            breakpoints.TryGetValue(PathUtil.Normalize(path), out var list) ? list.FirstOrDefault(b => b.Line == line) : null;
+
+        /// <summary>A hit count condition against the number of hits so far.</summary>
+        internal static bool HitMatches(string? condition, int hits)
+        {
+            if (string.IsNullOrWhiteSpace(condition)) return true;
+            var m = System.Text.RegularExpressions.Regex.Match(condition.Trim(), @"^(>=|>|==|=|%)?\s*(\d+)$");
+            if (!m.Success) return true;
+            var n = int.Parse(m.Groups[2].Value);
+            return m.Groups[1].Value switch
+            {
+                ">=" => hits >= n,
+                ">" => hits > n,
+                "%" => n > 0 && hits % n == 0,
+                _ => hits == n,
+            };
+        }
+
+        /// <summary>"x = {x}, count = {list.Count}": each {expression} evaluated in the frame.</summary>
+        private async Task<string> InterpolateAsync(string message, int frameId)
+        {
+            var sb = new StringBuilder();
+            var last = 0;
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(message, @"\{([^{}]+)\}"))
+            {
+                sb.Append(message, last, m.Index - last);
+                try
+                {
+                    sb.Append((await EvaluateAsync(m.Groups[1].Value, frameId, "watch", CancellationToken.None)).Result);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
+                {
+                    sb.Append('<').Append(ex.Message).Append('>');
+                }
+                last = m.Index + m.Length;
+            }
+            return sb.Append(message, last, message.Length - last).ToString();
+        }
+
+        /// <summary>A hit that does not pause (hit count not reached, a logpoint): go on without telling the UI it stopped.</summary>
+        private async Task ResumeQuietlyAsync(int thread)
+        {
+            SetState("running", publish: false);
+            try
+            {
+                await RequestAsync("continue", new JsonObject { ["threadId"] = thread }, CancellationToken.None);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or TimeoutException)
+            {
+                log.LogDebug(ex, "continue after a non-suspending hit failed");
+            }
         }
 
         private void SetState(string state, bool publish = true)
@@ -457,7 +680,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                 // ask nicely, kill the tree, then make sure of the adapter
                 try
                 {
-                    var bytes = Encoding.UTF8.GetBytes(new JsonObject { ["seq"] = 999_999, ["type"] = "request", ["command"] = "disconnect", ["arguments"] = new JsonObject { ["terminateDebuggee"] = true } }.ToJsonString());
+                    var bytes = Encoding.UTF8.GetBytes(new JsonObject { ["seq"] = 999_999, ["type"] = "request", ["command"] = "disconnect", ["arguments"] = new JsonObject { ["terminateDebuggee"] = !Attached } }.ToJsonString());
                     var stdin = p.StandardInput.BaseStream;
                     stdin.Write(Encoding.ASCII.GetBytes($"Content-Length: {bytes.Length}\r\n\r\n"));
                     stdin.Write(bytes);

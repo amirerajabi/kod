@@ -49,16 +49,26 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Hierarchy tool window, expanded one level at a time.
 - **Refactor This** (Ctrl+Shift+R): Rename, **Change Signature** (Ctrl+F6: add, remove, reorder and rename parameters
   across calls, overrides and implementations), **Safe Delete** (Alt+Delete: checks usages first; a parameter is
-  removed from every call), **Extract Interface**, plus every Roslyn refactoring at the caret.
+  removed from every call), **Extract Interface**, **Move Type** to another file or folder (namespace updated),
+  **Pull Members Up** / **Push Members Down**, **Inline** (Ctrl+Alt+N: a local, a constant or field, a method at
+  every call or just this one), **Extract Class**, plus every Roslyn refactoring at the caret.
+- **Generate** (Alt+Insert in the editor): constructor (with null checks), properties, read-only properties,
+  equality members (IEquatable, GetHashCode, == / !=), ToString, overriding members, missing members, dispose
+  pattern, each with a member picker.
 - **Inspect Code** on the whole solution (Inspections tool window, grouped by inspection, Fix all) and **Code
   Cleanup** (Ctrl+Alt+Shift+L: redundancies removed, syntax style applied, usings sorted, reformatted).
 - **Rename** across the solution (F2 / Shift+F6), **reformat** (Ctrl+Alt+L), comment, move/duplicate lines.
 
 **Debugger**
-- Breakpoints in the gutter (F9 / Ctrl+F8; conditions supported by the engine), F5 to debug or resume, F10 / F11 /
-  Shift+F11 to step, Shift+F5 to stop, the execution line while paused.
-- Debug tool window: call stack, variables tree, breakpoints, debug console with expression evaluation; hover a
-  variable while paused to see its value.
+- Breakpoints in the gutter (F9 / Ctrl+F8), F5 to debug or resume, F10 / F11 / Shift+F11 to step, **Run to Cursor**
+  (Alt+F9), Shift+F5 to stop, the execution line while paused.
+- **Breakpoint properties** (right-click the dot, Ctrl+Shift+F8): condition, hit count (the Nth hit, from the Nth,
+  every Nth), log message with `{expressions}`, suspend or not (a logpoint: Shift+click the gutter), enable /
+  disable, remove once hit.
+- **Break on exceptions**: user-unhandled or all thrown; the pause shows the exception's type and message.
+- **Attach to Process** (Ctrl+Alt+F5): any running .NET program; stopping detaches and leaves it running.
+- Debug tool window: call stack, variables tree (double-click a value to **set** it), breakpoints, debug console
+  with expression evaluation; hover a variable while paused to see its value.
 - Uses [netcoredbg](https://github.com/Samsung/netcoredbg) (MIT) over the Debug Adapter Protocol; Kod downloads it
   on first use (or set `KOD_NETCOREDBG`). ASP.NET Core apps get their launch profile URL and environment.
 - **Visualizers**: a View link on collections, arrays, dictionaries and DataTables opens them as a grid (one column
@@ -74,6 +84,9 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Git log window (Alt+9) with commit details and per-file diffs.
 - Inline blame of the caret line, like GitToolBox: author, time ago and commit message at the end of the line.
 - Git › Manage Remotes: add, rename, change the URL of and remove remotes.
+- **Pull Requests** tool window (GitHub, signed in with `gh` or a token): open / closed / mine, details with checks,
+  reviews and comments, the changed files as diffs, Checkout, Create Pull Request, comment, review (approve, request
+  changes) and merge (merge, squash, rebase).
 - **Changelists** in the Commit window (the active one's files are checked for the next commit) and **partial
   commits**: expand a file to pick hunks or single lines.
 - **Merge conflicts**: a Conflicts dialog (Accept Yours / Accept Theirs / Merge…) and a three-way merge tool (yours,
@@ -162,6 +175,14 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   WPF/WinForms (Windows), with or without a solution, or added to the open solution.
 - **Build / Rebuild / Clean / Restore** (Ctrl+Shift+B), **Run** the selected run configuration (Shift+F10) with
   stdin input, ANSI colours and a "listening on" link for web apps, **Run tests**, **Stop**.
+- **Run/Debug Configurations** (Alt+Shift+F10, or the top bar's picker › Edit Configurations): one per runnable
+  project, plus your own with a launch profile from launchSettings.json (or none), program arguments, environment
+  variables and a working directory; **compound** configurations start several projects at once.
+- **Hot Reload** (a configuration's check box): the app runs under `dotnet watch` and saved edits are applied to it
+  while it runs; an edit it cannot apply restarts the app.
+- **Project Properties** (Explorer › right-click a project, or File › Project Properties): application, build,
+  package and references pages that edit the .csproj in place (comments and layout kept); add or remove projects in
+  the solution from the solution's menu.
 - Clickable `file(line,col)` locations in output; build errors flow into the **Problems** window, together with
   live diagnostics and an on-demand **Analyze solution**.
 - **Tool window stripe** on the left edge (Rider's new UI): the side panel windows at the top, the bottom panel ones
@@ -265,7 +286,10 @@ git tag v0.2.1 && git push origin v0.2.1
 | Recent files / recent locations / back / forward | Ctrl+E / Ctrl+Shift+E / Ctrl+Alt+Left / Ctrl+Alt+Right |
 | Next / previous member | Alt+Down / Alt+Up |
 | Build / run / debug / stop | Ctrl+Shift+B / Shift+F10, Ctrl+F5 / F5 / Shift+F5 |
+| Edit configurations / attach to process | Alt+Shift+F10 / Ctrl+Alt+F5 |
 | Breakpoint / step over / into / out | F9, Ctrl+F8 / F10, F8 / F11, F7 / Shift+F11 |
+| Breakpoint properties / run to cursor | Ctrl+Shift+F8 / Alt+F9 |
+| Generate / inline | Alt+Insert / Ctrl+Alt+N |
 | Explorer / tool windows / terminal | Alt+1 / Ctrl+J / Alt+F12 |
 | Save / save all / close tab | Ctrl+S / Ctrl+Shift+S / Ctrl+F4 |
 | Settings | Ctrl+Alt+S |

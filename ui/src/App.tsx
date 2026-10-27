@@ -11,7 +11,9 @@ import { Dock } from './components/Dock';
 import { ToolStripe } from './components/ToolStripe';
 import { EditorArea } from './components/EditorArea';
 import { NewProjectDialog } from './components/NewProjectDialog';
+import { ProjectPropertiesDialog } from './components/ProjectPropertiesDialog';
 import { RefactorDialogs } from './components/RefactorDialogs';
+import { GenerateDialogs } from './components/GenerateDialogs';
 import { GitDialogs } from './components/GitDialogs';
 import { RemotesDialog } from './components/RemotesDialog';
 import { SettingsDialog } from './components/settings/SettingsDialog';
@@ -66,8 +68,10 @@ export default function App() {
       <RecentChanges />
       <UsagesPopup />
       <NewProjectDialog />
+      <ProjectPropertiesDialog />
       <RemotesDialog />
       <RefactorDialogs />
+      <GenerateDialogs />
       <GitDialogs />
       <PromptDialog />
       <ConfirmDialog />

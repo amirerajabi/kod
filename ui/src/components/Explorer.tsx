@@ -17,6 +17,7 @@ import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { changeKind, useGit } from '../store/git';
 import { FileIcon } from './common/icons';
+import { projectMenuItems, solutionMenuItems } from './ProjectPropertiesDialog';
 import { showContextMenu, type MenuItem } from './common/Menu';
 
 interface ExplorerState {
@@ -168,8 +169,10 @@ export function Explorer() {
         ...(projects.filter((p) => !p.unloaded && p !== project).length
           ? [{ label: 'Unload All Other Projects', run: () => void useWorkspace.getState().setUnloaded(projects.filter((p) => !p.unloaded && p !== project).map((p) => p.path), true) } as MenuItem]
           : []),
+        ...projectMenuItems(project),
       );
     }
+    if (/\.slnx?$/i.test(entry.path)) items.push(...solutionMenuItems(entry.path));
     items.push(
       'separator',
       {

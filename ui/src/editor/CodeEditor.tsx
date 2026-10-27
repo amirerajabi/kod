@@ -135,6 +135,7 @@ export function CodeEditor() {
 
     ed.addAction({ id: 'kod.usages.find', label: 'Find Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2, run: () => void findUsages() });
     ed.addAction({ id: 'kod.usages.show', label: 'Show Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2.1, run: () => void showUsages() });
+    ed.addAction({ id: 'kod.generate', label: 'Generate…', contextMenuGroupId: '1_modification', contextMenuOrder: 0, precondition: 'editorLangId == csharp', run: () => void import('./generate').then((m) => m.generateMenu(ed)) });
 
     // right-click › Local History (Rider's): the file, or only the selected lines
     ed.addAction({ id: 'kod.history.show', label: 'Local History: Show History', contextMenuGroupId: '9_history', contextMenuOrder: 0, run: () => void import('../app/commands').then((m) => m.runCommand('history.show')) });

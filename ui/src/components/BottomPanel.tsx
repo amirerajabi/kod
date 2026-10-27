@@ -6,13 +6,15 @@ import { LOCATION_RE } from '../lib/buildOutput';
 import { basename, dirname, norm, relative } from '../lib/paths';
 import { useEditors } from '../store/editors';
 import { allProblems, countProblems, useProblems } from '../store/problems';
-import { dotnetBuild, dotnetRun, dotnetTest, groupOf, startTerminal, useProcs, type ProcGroup, type ProcView } from '../store/procs';
+import { dotnetBuild, dotnetTest, groupOf, startTerminal, useProcs, type ProcGroup, type ProcView } from '../store/procs';
+import { rerunByTitle } from '../store/runConfigs';
 import { useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 import { runCommand } from '../app/commands';
 import { FileIcon } from './common/icons';
 import { DebugPanel } from './DebugPanel';
 import { GitLogPanel } from './GitLogPanel';
+import { PullRequestsPanel } from './PullRequestsPanel';
 import { HierarchyPanel } from './HierarchyPanel';
 import { BookmarksPanel, TodoPanel } from './TodoPanel';
 import { DbResultsPanel } from './DbResultsPanel';
@@ -64,6 +66,7 @@ export function BottomPanel() {
           {tab === 'http' && <HttpPanel />}
           {tab === 'ef' && <EfPanel />}
           {tab === 'git' && <GitLogPanel />}
+          {tab === 'pulls' && <PullRequestsPanel />}
           {tab === 'nuget' && <NugetWindow />}
           {tab === 'problems' && <ProblemsPane />}
           {tab === 'inspections' && <InspectionsPanel />}
@@ -106,7 +109,7 @@ function ProcessPane({ group }: { group: ProcGroup }) {
 
   const running = current.info.exitCode == null;
   const rerun = () => {
-    if (group === 'run') void dotnetRun(useWorkspace.getState().ws.projects.find((p) => dirname(p.path) === current.info.cwd)?.path);
+    if (group === 'run') void rerunByTitle(current.info.title, current.info.cwd);
     else if (current.info.kind === 'test') void dotnetTest();
     else if (['build', 'rebuild', 'clean', 'restore'].includes(current.info.kind)) void dotnetBuild(current.info.kind as 'build');
   };

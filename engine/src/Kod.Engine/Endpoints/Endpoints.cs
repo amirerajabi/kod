@@ -24,6 +24,9 @@ public sealed record StepBody(string Command);
 public sealed record FrameBody(int FrameId);
 public sealed record VariablesBody(int Reference);
 public sealed record EvaluateBody(string Expression, int? FrameId, string? Context);
+public sealed record ExceptionFiltersBody(List<string> Filters);
+public sealed record RunToBody(string Path, int Line);
+public sealed record SetVariableBody(int Reference, string Name, string Value);
 public sealed record PathsBody(List<string> Paths);
 public sealed record CommitBody(string Message, List<string>? Paths, bool Amend, List<PartialFileDto>? Partial = null);
 public sealed record GitActionBody(string Action);
@@ -199,6 +202,14 @@ public static class Endpoints
         debug.MapPost("/variables", (VariablesBody b, DebugService d, CancellationToken ct) => d.VariablesAsync(b.Reference, ct));
         debug.MapPost("/evaluate", (EvaluateBody b, DebugService d, CancellationToken ct) => d.EvaluateAsync(b.Expression, b.FrameId, b.Context ?? "repl", ct));
         debug.MapPost("/visualize", (VisualizeRequest r, DebugService d, CancellationToken ct) => d.VisualizeAsync(r, ct));
+        debug.MapGet("/processes", () => DebugService.Processes());
+        debug.MapPost("/attach", (AttachRequest r, DebugService d, CancellationToken ct) => d.AttachAsync(r, ct));
+        debug.MapPost("/exceptions", async (ExceptionFiltersBody b, DebugService d, CancellationToken ct) => { await d.SetExceptionFiltersAsync(b.Filters, ct); return Results.NoContent(); });
+        debug.MapPost("/runTo", async (RunToBody b, DebugService d, CancellationToken ct) => { await d.RunToAsync(b.Path, b.Line, ct); return Results.NoContent(); });
+        debug.MapPost("/setVariable", (SetVariableBody b, DebugService d, CancellationToken ct) => d.SetVariableAsync(b.Reference, b.Name, b.Value, ct));
+
+        // ---- run configurations
+        api.MapGet("/run/profiles", (string project) => LaunchProfiles.Read(project));
 
         // ---- Git
         var git = api.MapGroup("/git");
@@ -311,6 +322,10 @@ public static class Endpoints
             }
         });
 
+        api.MapProjectFiles();
+        api.MapPullRequests();
+
+        api.MapGenerate();
         return api;
     }
 }

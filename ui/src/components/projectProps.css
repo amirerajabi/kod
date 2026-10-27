@@ -1,0 +1,97 @@
+/* Project Properties: the Settings dialog's shell (settings.css) plus reference lists and the target framework chips. */
+.pp-dialog .dialog-footer {
+  border-top: 1px solid var(--border-subtle);
+}
+.pp-input {
+  width: 260px;
+}
+.pp-textarea {
+  width: 100%;
+  min-height: 64px;
+  resize: vertical;
+  font-family: inherit;
+}
+.pp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1);
+  justify-content: flex-end;
+  max-width: 420px;
+}
+.pp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 22px;
+  padding: 0 2px 0 8px;
+  border-radius: 11px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: var(--text-sm);
+}
+.pp-chip button {
+  display: inline-flex;
+  border: none;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 50%;
+}
+.pp-chip button:hover {
+  background: var(--bg-hover);
+}
+.pp-list {
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-1) 0;
+}
+.pp-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: 0 var(--space-1);
+  border-radius: var(--radius);
+}
+.pp-item:hover {
+  background: var(--bg-hover);
+}
+.pp-item-name {
+  font-weight: var(--weight-strong);
+}
+.pp-item-detail {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+.pp-item .icon-btn {
+  visibility: hidden;
+}
+.pp-item:hover .icon-btn,
+.pp-item .icon-btn:focus-visible {
+  visibility: visible;
+}
+.pp-add {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 var(--space-3);
+}
+.pp-add .settings-select {
+  flex: 1;
+}
+.pp-empty {
+  padding: var(--space-2) var(--space-1);
+  color: var(--fg-muted);
+  font-size: var(--text-sm);
+}
+
+/* the references cards hold lists, not settings rows: keep them out of the settings search's "nothing matched" rule */
+.settings-dialog.pp-dialog .settings-card:has(.pp-list) {
+  display: block;
+}

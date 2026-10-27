@@ -1,0 +1,65 @@
+/* Run/Debug Configurations, breakpoint properties and Attach to Process */
+.runcfg-dialog .dialog-body {
+  padding: 0;
+}
+.runcfg {
+  display: flex;
+  height: 440px;
+  max-height: 70vh;
+}
+.runcfg-list {
+  width: 240px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-subtle);
+}
+.runcfg-tools {
+  display: flex;
+  gap: 2px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.runcfg-form {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-4) var(--space-5);
+}
+.runcfg-form textarea {
+  width: 100%;
+  resize: vertical;
+}
+.input.mono {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+.attach-list {
+  height: 320px;
+  max-height: 55vh;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  margin-top: var(--space-2);
+}
+.attach-list .result-item .loc {
+  max-width: 55%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bp-off {
+  opacity: 0.5;
+}
+.var-edit {
+  height: 20px;
+  min-width: 160px;
+  padding: 0 4px;
+}
+.var-set {
+  display: none;
+  border: none;
+  padding: 0 3px;
+}
+.result-item:hover .var-set {
+  display: inline-flex;
+}
