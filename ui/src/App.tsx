@@ -14,6 +14,7 @@ import { NewProjectDialog } from './components/NewProjectDialog';
 import { ProjectPropertiesDialog } from './components/ProjectPropertiesDialog';
 import { RefactorDialogs } from './components/RefactorDialogs';
 import { GenerateDialogs } from './components/GenerateDialogs';
+import { PasteHistoryDialog } from './components/PasteHistoryDialog';
 import { GitDialogs } from './components/GitDialogs';
 import { RemotesDialog } from './components/RemotesDialog';
 import { SettingsDialog } from './components/settings/SettingsDialog';
@@ -74,6 +75,7 @@ export default function App() {
       <RemotesDialog />
       <RefactorDialogs />
       <GenerateDialogs />
+      <PasteHistoryDialog />
       <GitDialogs />
       <PromptDialog />
       <ConfirmDialog />

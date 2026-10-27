@@ -3,6 +3,7 @@ import { api, errorText } from '../api/client';
 import { getEditor } from '../editor/CodeEditor';
 import { basename, dirname, extname, join, relative, stem } from '../lib/paths';
 import { platform } from '../platform';
+import { useClipboard } from '../store/clipboard';
 import { closeAllTabs, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
 import { askConfirm, askText, toast, useUi } from '../store/ui';
@@ -142,6 +143,7 @@ export async function deletePath(path: string, isDir: boolean): Promise<void> {
 export async function copyText(text: string, what = 'Path'): Promise<void> {
   try {
     await navigator.clipboard.writeText(text);
+    useClipboard.getState().add(text);
     toast('info', `${what} copied`, undefined, 1500);
   } catch {
     toast('warning', 'Clipboard is not available');

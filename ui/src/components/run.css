@@ -63,3 +63,28 @@
 .result-item:hover .var-set {
   display: inline-flex;
 }
+/* Paste from History */
+.paste-list {
+  height: 200px;
+  margin-top: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+}
+.paste-list .mono-text {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.paste-preview {
+  height: 180px;
+  margin: var(--space-2) 0 0;
+  padding: 8px 10px;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-sunken);
+  font: var(--text-sm) / 1.5 var(--font-mono);
+  white-space: pre;
+}

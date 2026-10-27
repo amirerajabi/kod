@@ -55,7 +55,31 @@ export function appMenu(): MenuItem[] {
     },
     {
       label: 'Edit',
-      submenu: [c('code.comment'), c('code.blockComment'), 'separator', c('code.fold'), c('code.unfold'), 'separator', c('code.replace'), c('nav.findInFiles')],
+      submenu: [
+        {
+          label: 'Copy/Paste Special',
+          submenu: [
+            c('edit.copyPathReference'),
+            c('edit.copyPaths'),
+            c('edit.copyReference'),
+            'separator',
+            c('edit.copyPlain'),
+            c('edit.copyRich'),
+            'separator',
+            c('edit.pasteHistory'),
+            c('edit.pastePlain'),
+          ],
+        },
+        'separator',
+        c('code.comment'),
+        c('code.blockComment'),
+        'separator',
+        c('code.fold'),
+        c('code.unfold'),
+        'separator',
+        c('code.replace'),
+        c('nav.findInFiles'),
+      ],
     },
     {
       label: 'View',

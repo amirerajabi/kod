@@ -4,6 +4,7 @@ import { api, errorText } from '../api/client';
 import type { DiagnosticDto } from '../api/types';
 import { editorAction, findUsages, getEditor, showUsages } from '../editor/CodeEditor';
 import { toggleBreakpointAtCursor } from '../editor/debugEditor';
+import { copyPathReference, copyPaths, copyPlain, copyReference, copyRich, pasteFromHistory, pastePlain } from '../editor/clipboard';
 import { debugActive, runToCursor, step, stopDebugging, useDebug, type ExceptionFilter } from '../store/debug';
 import { debugConfig, runConfig, useRunConfigs } from '../store/runConfigs';
 import { isMac } from '../platform';
@@ -251,6 +252,15 @@ export const COMMANDS: Command[] = [
   { id: 'code.generate', title: 'Generate…', category: 'Code', keys: ['Alt+Insert'], run: () => void generateMenu(getEditor()), when: csharpEditorFocused },
   { id: 'code.surround', title: 'Surround With…', category: 'Code', keys: ['Ctrl+Alt+T'], run: () => void withEditor(surroundWith) },
   { id: 'code.replace', title: 'Replace in File', category: 'Code', keys: ['Ctrl+R'], run: () => editorAction('editor.action.startFindReplaceAction'), when: editorFocused },
+
+  // Edit › Copy/Paste Special
+  { id: 'edit.copyPathReference', title: 'Copy Path/Reference…', category: 'Edit', keys: ['Ctrl+Alt+Shift+C'], run: () => void copyPathReference() },
+  { id: 'edit.copyPaths', title: 'Copy Paths', category: 'Edit', keys: ['Ctrl+Shift+C'], run: copyPaths },
+  { id: 'edit.copyReference', title: 'Copy Reference', category: 'Edit', run: () => void copyReference() },
+  { id: 'edit.copyPlain', title: 'Copy as Plain Text', category: 'Edit', run: () => void copyPlain() },
+  { id: 'edit.copyRich', title: 'Copy as Rich Text', category: 'Edit', run: copyRich },
+  { id: 'edit.pasteHistory', title: 'Paste from History…', category: 'Edit', keys: ['Ctrl+Shift+V'], run: () => void pasteFromHistory() },
+  { id: 'edit.pastePlain', title: 'Paste as Plain Text', category: 'Edit', keys: ['Ctrl+Alt+Shift+V'], run: () => void pastePlain(), when: editorFocused },
   { id: 'code.toggleInlayHints', title: 'Toggle Inlay Hints', category: 'Code', run: () => useSettings.getState().update({ inlayHints: !useSettings.getState().prefs.inlayHints }) },
   { id: 'code.toggleCodeVision', title: 'Toggle Code Vision', category: 'Code', run: () => useSettings.getState().update({ codeVision: !useSettings.getState().prefs.codeVision }) },
 

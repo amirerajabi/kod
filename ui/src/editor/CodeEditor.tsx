@@ -135,6 +135,9 @@ export function CodeEditor() {
 
     ed.addAction({ id: 'kod.usages.find', label: 'Find Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2, run: () => void findUsages() });
     ed.addAction({ id: 'kod.usages.show', label: 'Show Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2.1, run: () => void showUsages() });
+    // next to Cut / Copy / Paste, as Rider's Copy/Paste Special
+    ed.addAction({ id: 'kod.copyPathReference', label: 'Copy Path/Reference…', contextMenuGroupId: '9_cutcopypaste', contextMenuOrder: 10, run: () => void import('./clipboard').then((m) => m.copyPathReference()) });
+    ed.addAction({ id: 'kod.pasteHistory', label: 'Paste from History…', contextMenuGroupId: '9_cutcopypaste', contextMenuOrder: 11, run: () => void import('./clipboard').then((m) => m.pasteFromHistory()) });
     ed.addAction({ id: 'kod.generate', label: 'Generate…', contextMenuGroupId: '1_modification', contextMenuOrder: 0, precondition: 'editorLangId == csharp', run: () => void import('./generate').then((m) => m.generateMenu(ed)) });
 
     // right-click › Local History (Rider's): the file, or only the selected lines

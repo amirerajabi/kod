@@ -180,7 +180,9 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   stdin input, ANSI colours and a "listening on" link for web apps, **Run tests**, **Stop**.
 - **Run/Debug Configurations** (Alt+Shift+F10, or the top bar's picker › Edit Configurations): one per runnable
   project, plus your own with a launch profile from launchSettings.json (or none), program arguments, environment
-  variables and a working directory; **compound** configurations start several projects at once.
+  variables and a working directory; **compound** configurations start several projects at once. **After launch**,
+  a web app opens in the browser once it listens (the launch profile's launchBrowser / launchUrl, or the
+  configuration's own choice and page), under Run and Debug.
 - **Hot Reload** (a configuration's check box): the app runs under `dotnet watch` and saved edits are applied to it
   while it runs; an edit it cannot apply restarts the app.
 - **Project Properties** (Explorer › right-click a project, or File › Project Properties): application, build,
@@ -197,6 +199,10 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Windows), copy path, reveal, open in terminal, run/build/test project, set run configuration; **Show All Files**
   (the eye button) also lists bin, obj, .git, .vs and node_modules, dimmed.
 - **Find in files** with regex, case, whole word, include globs and replace all.
+- **Copy/Paste Special** (Edit menu): Copy Path/Reference (Ctrl+Alt+Shift+C: absolute path, file name, path from
+  the solution or repository root, `Namespace.Type.Member`, file:line, a GitHub/GitLab link to the selected lines),
+  Copy Paths (Ctrl+Shift+C), Copy as Plain / Rich Text, **Paste from History** (Ctrl+Shift+V: every copy and cut,
+  kept across restarts) and Paste as Plain Text (Ctrl+Alt+Shift+V).
 - **NuGet** tool window (Alt+Shift+7, like Rider's): Browse / Installed / Updates across the solution, search on
   every enabled v3 feed (or one), prerelease toggle; package details (versions, description, license, project link,
   downloads, dependencies per framework, deprecation and vulnerability warnings); every project with its installed
@@ -295,6 +301,7 @@ git tag v0.2.1 && git push origin v0.2.1
 | Generate / inline | Alt+Insert / Ctrl+Alt+N |
 | Explorer / tool windows / terminal | Alt+1 / Ctrl+J / Alt+F12 |
 | Save / save all / close tab | Ctrl+S / Ctrl+Shift+S / Ctrl+F4 |
+| Copy path/reference / paste from history / paste as plain text | Ctrl+Alt+Shift+C / Ctrl+Shift+V / Ctrl+Alt+Shift+V |
 | Settings | Ctrl+Alt+S |
 | Bookmark / numbered bookmark / go to bookmark / bookmarks | F11 / Ctrl+Shift+1…9 / Ctrl+1…9 / Shift+F11 |
 | TODO / Database / Services | Alt+Shift+6 / Alt+Shift+D / Alt+Shift+8 |

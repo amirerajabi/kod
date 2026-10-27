@@ -49,6 +49,20 @@ const MAX_TEXT = 2_000_000;
 const KEEP_TEXT = 200_000;
 const waiters = new Map<string, (p: ProcDto) => void>();
 const urlShown = new Set<string>();
+/** Runs that open the browser once listening: the launch URL to open (relative to the listening address, or absolute). */
+const browserFor = new Map<string, string>();
+
+/** The first "Now listening on: http://…" address in ASP.NET Core's output. */
+export function listeningUrl(text: string): string | null {
+  return /Now listening on:\s*(https?:\/\/\S+)/.exec(stripAnsi(text))?.[1] ?? null;
+}
+
+/** What the browser opens: an absolute launch URL as it is, else the listening address (any-host bindings as localhost) plus the path. */
+export function browserUrl(listening: string, target: string): string {
+  if (/^https?:\/\//i.test(target)) return target;
+  const base = listening.replace(/\/\/(0\.0\.0\.0|\[::\]|\+|\*)(?=[:/]|$)/, '//localhost').replace(/\/+$/, '');
+  return target ? `${base}/${target.replace(/^\/+/, '')}` : base;
+}
 
 export const useProcs = create<ProcsState>((set, get) => ({
   procs: {},
@@ -66,10 +80,15 @@ export const useProcs = create<ProcsState>((set, get) => ({
       set((s) => ({ procs: { ...s.procs, [e.id]: { ...p, text } } }));
       if (p.info.kind === 'run' && p.info.commandLine.startsWith('dotnet watch')) hotReloadNotice(stripAnsi(e.text));
       if (p.info.kind === 'run' && !urlShown.has(e.id)) {
-        const m = /Now listening on:\s*(https?:\/\/\S+)/.exec(stripAnsi(text));
-        if (m) {
+        const listening = listeningUrl(text);
+        if (listening) {
           urlShown.add(e.id);
-          useUi.getState().toast({ kind: 'success', text: `${p.info.title} is listening`, detail: m[1], action: { label: 'Open in browser', run: () => platform.openExternal(m[1].replace('0.0.0.0', 'localhost').replace('[::]', 'localhost')) } }, 10_000);
+          const target = browserFor.get(e.id);
+          if (target !== undefined) {
+            const url = browserUrl(listening, target);
+            void platform.openExternal(url);
+            toast('success', `${p.info.title} is listening: opened the browser`, url, 4000);
+          } else useUi.getState().toast({ kind: 'success', text: `${p.info.title} is listening`, detail: listening, action: { label: 'Open in browser', run: () => platform.openExternal(browserUrl(listening, '')) } }, 10_000);
         }
       }
     } else if (e.type === 'proc.exit') {
@@ -122,6 +141,7 @@ export const useProcs = create<ProcsState>((set, get) => ({
           if (!selected.has(p.info.id)) {
             delete procs[p.info.id];
             urlShown.delete(p.info.id);
+            browserFor.delete(p.info.id);
             changed = true;
           }
       }
@@ -239,6 +259,8 @@ export interface RunOptions {
   cwd?: string;
   /** `dotnet watch`: saved edits are applied to the running app (a rude edit restarts it). */
   hotReload?: boolean;
+  /** Open the browser once the app listens: the launch URL (a path, an absolute URL, or '' for the address itself). */
+  browser?: string;
 }
 
 /** Run tab title → process, so a rerun stops the previous instance of the same configuration. */
@@ -268,7 +290,10 @@ export async function dotnetRun(projectPath?: string, opts: RunOptions = {}): Pr
   // Kod offers the URL itself; a rude edit restarts instead of asking on the console
   if (opts.hotReload) Object.assign(env, { DOTNET_WATCH_RESTART_ON_RUDE_EDIT: 'true', DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER: '1', DOTNET_WATCH_SUPPRESS_EMOJIS: '1' });
   const info = await useProcs.getState().start({ kind: 'run', title, file: 'dotnet', args, cwd: opts.cwd || dirname(path), env });
-  if (info) runByTitle.set(title, info.id);
+  if (info) {
+    runByTitle.set(title, info.id);
+    if (opts.browser !== undefined) browserFor.set(info.id, opts.browser);
+  }
   return info;
 }
 

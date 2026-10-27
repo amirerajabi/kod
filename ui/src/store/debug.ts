@@ -5,7 +5,8 @@ import { api, errorText } from '../api/client';
 import { basename, norm, samePath } from '../lib/paths';
 import { loadRaw, save } from '../lib/storage';
 import { useEditors } from './editors';
-import { dotnetBuild } from './procs';
+import { platform } from '../platform';
+import { browserUrl, dotnetBuild, listeningUrl } from './procs';
 import { useSettings } from './settings';
 import { askConfirm, toast, useUi } from './ui';
 import { startupProject, useWorkspace } from './workspace';
@@ -215,9 +216,13 @@ export interface LaunchOptions {
   args?: string[];
   env?: Record<string, string>;
   cwd?: string;
+  /** Open the browser once the app listens: the launch URL (a path, an absolute URL, or '' for the address itself). */
+  browser?: string;
 }
 
 let lastStart: { projectPath?: string; opts: { docker?: boolean; launch?: LaunchOptions } } = { opts: {} };
+/** The launch URL to open once the debugged app listens, or null. */
+let browserAfterStart: string | null = null;
 
 const breakpointsForStart = () => Object.fromEntries(Object.values(useDebug.getState().breakpoints).map((v) => [v.path, sent(v.bps).map(wire)]));
 
@@ -232,6 +237,7 @@ export async function startDebugging(projectPath?: string, opts: { docker?: bool
   }
   if (!opts.docker && !(await ensureAdapter())) return;
   lastStart = { projectPath: project.path, opts };
+  browserAfterStart = opts.launch?.browser ?? null;
   if (useSettings.getState().settings.saveBeforeBuild) await useEditors.getState().saveAll();
   useDebug.setState({ status: 'building', output: '', frames: [], frameId: null, reason: null, exception: null, program: project.name });
   const built = await dotnetBuild('build', project.path);
@@ -404,6 +410,16 @@ export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
         if (output.length > 1_000_000) output = output.slice(-1_000_000);
         return { output };
       });
+      // a web app under the debugger: the browser once it listens (the tail, as the line can arrive in pieces)
+      if (browserAfterStart !== null) {
+        const listening = listeningUrl(useDebug.getState().output.slice(-4000));
+        if (listening) {
+          const url = browserUrl(listening, browserAfterStart);
+          browserAfterStart = null;
+          void platform.openExternal(url);
+          toast('success', 'Debugging: opened the browser', url, 4000);
+        }
+      }
       break;
     case 'debug.ended':
       useDebug.setState({ status: 'idle', frames: [], frameId: null, exception: null, tip: null });
