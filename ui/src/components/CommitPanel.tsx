@@ -294,12 +294,18 @@ export function CommitPanel() {
           className="result-file"
           onClick={() => setClosed({ ...closed, [id]: !closed[id] })}
           onContextMenu={(e) =>
-            changelist &&
+            id !== 'conflicts' &&
             showContextMenu(e, [
-              { label: 'Set Active Changelist', disabled: isActive, run: () => setActiveChangelist(changelist) },
-              { label: 'New Changelist…', run: () => void newChangelist() },
-              { label: 'Rename…', run: () => void renameChangelist(changelist) },
-              { label: 'Delete', disabled: changelist === 'default', danger: true, run: () => void deleteChangelist(changelist) },
+              { label: 'Rollback…', icon: <RotateCcw size={14} />, danger: true, disabled: list.length === 0, run: () => void rollback(list.map((f) => f.path)) },
+              ...(changelist
+                ? ([
+                    'separator',
+                    { label: 'Set Active Changelist', disabled: isActive, run: () => setActiveChangelist(changelist) },
+                    { label: 'New Changelist…', run: () => void newChangelist() },
+                    { label: 'Rename…', run: () => void renameChangelist(changelist) },
+                    { label: 'Delete Changelist', disabled: changelist === 'default', danger: true, run: () => void deleteChangelist(changelist) },
+                  ] as MenuItem[])
+                : []),
             ])
           }
         >
