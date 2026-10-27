@@ -5,6 +5,8 @@ import { keyLabel } from '../app/commands';
 import { basename } from '../lib/paths';
 import { evaluate, startDebugging, step, stopDebugging, useDebug, type Variable } from '../store/debug';
 import { useEditors } from '../store/editors';
+import { canVisualize, visualize } from './VisualizerDialog';
+import { DiagnosticsView } from './DiagnosticsView';
 
 /** The Debug tool window: session toolbar, call stack, variables of the selected frame, breakpoints and the console. */
 export function DebugPanel() {
@@ -15,6 +17,7 @@ export function DebugPanel() {
   const frameId = useDebug((s) => s.frameId);
   const stopped = status === 'stopped';
   const active = status !== 'idle';
+  const [pane, setPane] = useState<'variables' | 'diagnostics'>('variables');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -92,10 +95,22 @@ export function DebugPanel() {
           <BreakpointList />
         </div>
         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div className="section-label">Variables</div>
-          <div className="result-list" style={{ fontFamily: 'var(--font-mono)' }}>
-            {stopped && frameId !== null ? <Scopes frameId={frameId} /> : <div className="panel-empty" style={{ padding: 12 }}>Shown while paused</div>}
+          <div className="subtabs">
+            {(['variables', 'diagnostics'] as const).map((t) => (
+              <button key={t} className={`subtab${pane === t ? ' active' : ''}`} onClick={() => setPane(t)}>
+                {t === 'variables' ? 'Variables' : 'Diagnostics'}
+              </button>
+            ))}
           </div>
+          {pane === 'variables' ? (
+            <div className="result-list" style={{ fontFamily: 'var(--font-mono)' }}>
+              {stopped && frameId !== null ? <Scopes frameId={frameId} /> : <div className="panel-empty" style={{ padding: 12 }}>Shown while paused</div>}
+            </div>
+          ) : (
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
+              <DiagnosticsView />
+            </div>
+          )}
           <DebugConsole />
         </div>
       </div>
@@ -122,7 +137,16 @@ function Scopes({ frameId }: { frameId: number }) {
   );
 }
 
-function VarNode({ v, depth, open: initiallyOpen = false, scope = false }: { v: Variable; depth: number; open?: boolean; scope?: boolean }) {
+/** The expression of a variable: the debugger's evaluateName, else built from its parent's (a.b, a[0]). */
+function exprOf(v: Variable, parent: string | null): string {
+  if (v.evaluateName) return v.evaluateName;
+  if (!parent) return v.name;
+  return /^\[.*\]$/.test(v.name) ? `${parent}${v.name}` : `${parent}.${v.name}`;
+}
+
+const PSEUDO = new Set(['Static members', 'Non-Public members', 'Raw View', 'Results View']);
+
+function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent = null }: { v: Variable; depth: number; open?: boolean; scope?: boolean; parent?: string | null }) {
   const [open, setOpen] = useState(initiallyOpen);
   const [children, setChildren] = useState<Variable[] | null>(null);
   useEffect(() => {
@@ -130,6 +154,8 @@ function VarNode({ v, depth, open: initiallyOpen = false, scope = false }: { v: 
     api.post<Variable[]>('/debug/variables', { reference: v.variablesReference }).then(setChildren, () => setChildren([]));
   }, [open, children, v.variablesReference]);
   const expandable = v.variablesReference > 0;
+  // scopes and grouping nodes have no expression of their own: their children hang off the parent's
+  const expr = scope || PSEUDO.has(v.name) ? parent : exprOf(v, parent);
   return (
     <>
       <div className="result-item" style={{ paddingLeft: 8 + depth * 14, gap: 6 }} onClick={() => expandable && setOpen(!open)} title={v.type ? `${v.name}: ${v.type}` : v.name}>
@@ -142,10 +168,22 @@ function VarNode({ v, depth, open: initiallyOpen = false, scope = false }: { v: 
               {v.value}
             </span>
             {v.type && <span className="loc">{v.type}</span>}
+            {expr && canVisualize(v) && (
+              <button
+                className="vis-link"
+                title={/^"/.test(v.value) ? 'View the whole text (Text, JSON, XML, HTML)' : 'View as a table'}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void visualize(expr, v.variablesReference);
+                }}
+              >
+                View
+              </button>
+            )}
           </>
         )}
       </div>
-      {open && children?.map((c, i) => <VarNode key={`${c.name}:${i}`} v={c} depth={depth + 1} />)}
+      {open && children?.map((c, i) => <VarNode key={`${c.name}:${i}`} v={c} depth={depth + 1} parent={expr} />)}
     </>
   );
 }

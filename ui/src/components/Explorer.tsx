@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, Eye, EyeOff, FilePlus, FolderPlus, Hammer, ListCollapse, Package, PackageMinus, PackageOpen, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink, Database as DatabaseIcon, Eye, EyeOff, FilePlus, Globe, FolderPlus, Hammer, ListCollapse, Package, PackageMinus, PackageOpen, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -6,6 +6,7 @@ import { api, errorText } from '../api/client';
 import type { FsEntry } from '../api/types';
 import { onEngineEvent } from '../api/ws';
 import { copyText, createItem, deletePath, renamePath } from '../app/actions';
+import { generateHttpFile } from '../store/http';
 import { extname, isUnder, norm, relative, samePath } from '../lib/paths';
 import { platform } from '../platform';
 import { useEditors } from '../store/editors';
@@ -157,6 +158,8 @@ export function Explorer() {
         ...(project.kind === 'test' ? [{ label: 'Run Tests', icon: <TestTube2 size={14} />, run: () => void dotnetTest(project.path) } as MenuItem] : []),
         ...(project.runnable ? [{ label: 'Set as Run Configuration', icon: <Star size={14} />, checked: samePath(startup, project.path), run: () => useWorkspace.getState().setStartup(project.path) } as MenuItem] : []),
         { label: 'Manage NuGet Packages', icon: <Package size={14} />, run: () => useUi.getState().showBottom('nuget') },
+        ...(project.kind === 'web' ? [{ label: 'Generate HTTP Requests', icon: <Globe size={14} />, run: () => void generateHttpFile(project.path) } as MenuItem] : []),
+        { label: 'EF Core Migrations', icon: <DatabaseIcon size={14} />, run: () => useUi.getState().showBottom('ef') },
         'separator',
         project.unloaded
           ? { label: 'Load Project', icon: <PackageOpen size={14} />, run: () => void useWorkspace.getState().setUnloaded([project.path], false) }

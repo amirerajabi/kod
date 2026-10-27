@@ -107,7 +107,7 @@ export function DiffView({ spec }: { spec: DiffSpec }) {
           {error ? <span className="sev-error">{error}</span> : `${counts} change${counts === 1 ? '' : 's'}`}
         </span>
       </div>
-      <div ref={host} style={{ flex: 1, minHeight: 0 }} />
+      <div ref={host} className="monaco-component" style={{ flex: 1, minHeight: 0 }} />
     </div>
   );
 }

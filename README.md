@@ -60,6 +60,11 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   variable while paused to see its value.
 - Uses [netcoredbg](https://github.com/Samsung/netcoredbg) (MIT) over the Debug Adapter Protocol; Kod downloads it
   on first use (or set `KOD_NETCOREDBG`). ASP.NET Core apps get their launch profile URL and environment.
+- **Visualizers**: a View link on collections, arrays, dictionaries and DataTables opens them as a grid (one column
+  per field or property; sort, filter, copy as CSV / TSV), and on long strings a Text / JSON / XML / HTML viewer.
+- **Live diagnostics** (Debug window › Diagnostics, like Visual Studio's Diagnostic Tools): CPU, memory and GC heap,
+  garbage collections, allocation rate, exceptions per second and the thread pool, charted live over EventPipe,
+  with every exception (type and message) and GC as it happens.
 
 **Git** (the git CLI, with your own config and credentials)
 - Commit window (Alt+0): changes with check boxes, message, Amend, Commit / Commit and Push, Rollback, Stage /
@@ -107,11 +112,32 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - Agent mode reads and searches the workspace, edits files and runs commands, asking before each edit or command;
   Auto and Chat modes. Streaming Markdown answers, code blocks with Copy / Insert, editor actions (Explain, Fix,
   Write tests, Document). API keys are kept encrypted by the OS keychain.
+- **Inline completions** (Settings › AI): grey ghost text as you type, from your provider and a fast model
+  (Claude Haiku, GPT-5 mini, Gemini Flash, Codestral… or one you choose). Tab accepts, Ctrl+→ a word, Alt+\ asks.
 
 **Unit tests**
 - Test explorer (Alt+8) for xUnit, NUnit and MSTest, discovered by Roslyn: run all / failed / a namespace, class or
   test, theory rows, failure message with a stack trace linked to the source, test output; "Run test" code lenses
   with the last result in the editor.
+- **Code coverage**: Run with Coverage (the shield button, or right-click a test) collects line and branch coverage
+  (coverlet, or Microsoft Code Coverage); green, red and yellow bars in the editor gutter for covered, uncovered and
+  partly covered lines, and the **Coverage** window per assembly and file.
+
+**HTTP Client** (.http / .rest files, Rider's and Visual Studio's format)
+- ▶ Send request above every request, or Ctrl+Enter in it; responses in the HTTP Client window (formatted JSON / XML,
+  images, headers, timing, size), with a history.
+- Variables (`@name = value`), environments from `http-client.env.json` / `http-client.private.env.json`,
+  `{{$guid}}`, `{{$timestamp}}`, `{{$randomInt}}`, bodies from files (`< ./body.json`), Copy as cURL, and
+  completion of methods, headers and variables. Requests go through the engine, so localhost dev certificates work.
+- Right-click a web project › **Generate HTTP Requests**: a .http file with a request for every endpoint (minimal
+  APIs, MapGroup prefixes, controllers) at the launch profile's URL.
+
+**EF Core** (the EF Core tool window, via `dotnet ef`)
+- The migrations project, startup project and DbContext; migrations with whether the database has applied them.
+- Add / remove migrations, update the database (to the latest or any migration), revert all, drop the database,
+  and generate the SQL script (idempotent where the provider supports it).
+- Scaffold a DbContext and entities from a Database panel data source; its connection string stays out of the
+  command line and the generated code. Installs dotnet-ef or the Design package when they are missing.
 
 **Settings and updates**
 - Rowlit's settings dialog: searchable sections, app themes (Light, Paper, Solarized Light, IntelliJ Light, Dark,
@@ -237,4 +263,4 @@ On macOS, Ctrl is ⌘.
 
 ## Not (yet) in Kod
 
-Profilers, debugging a single test, code coverage, and Razor / XAML intelligence.
+A full profiler (CPU sampling, memory snapshots), debugging a single test, and Razor / XAML intelligence.

@@ -68,6 +68,7 @@ services.AddSingleton<NugetService>();
 services.AddSingleton<Kod.Engine.Database.DatabaseService>();
 services.AddSingleton<DebugAdapter>();
 services.AddSingleton<Kod.Engine.Docker.DockerService>();
+services.AddSingleton<LiveDiagnostics>();
 services.AddSingleton<DebugService>();
 services.AddSingleton<Kod.Engine.Git.GitService>();
 services.AddSingleton<Kod.Engine.Testing.TestService>();
@@ -77,6 +78,8 @@ services.AddSingleton<Kod.Engine.Ai.AiTools>();
 services.AddSingleton<Kod.Engine.Ai.AnthropicBackend>();
 services.AddSingleton<Kod.Engine.Ai.OpenAiCompatibleBackend>();
 services.AddSingleton<Kod.Engine.Ai.AiService>();
+services.AddSingleton<Kod.Engine.Http.HttpRequestService>();
+services.AddSingleton<Kod.Engine.Database.EfService>();
 services.AddSingleton<MemoryService>();
 services.AddHostedService(sp => sp.GetRequiredService<MemoryService>());
 // caches the memory service may empty

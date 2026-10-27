@@ -60,6 +60,8 @@ const BY_EXT: Record<string, string> = {
   '.sh': 'shell',
   '.bash': 'shell',
   '.sql': 'sql',
+  '.http': 'http',
+  '.rest': 'http',
   '.py': 'python',
   '.dockerfile': 'dockerfile',
   '.bat': 'bat',

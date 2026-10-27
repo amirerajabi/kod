@@ -1,0 +1,128 @@
+/* HTTP Client tool window. Design tokens only. */
+
+.http-panel {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+}
+.http-list {
+  width: 300px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border-subtle);
+  min-height: 0;
+}
+.http-list .panel-body {
+  flex: 1;
+  overflow: auto;
+}
+.http-list .panel-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  padding: var(--space-4) var(--space-3);
+}
+.http-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: var(--row-h);
+  padding: 0 var(--space-3);
+  border: 0;
+  background: none;
+  color: var(--fg);
+  text-align: left;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+.http-item:hover {
+  background: var(--bg-hover);
+}
+.http-item.selected {
+  background: var(--bg-selected);
+}
+.http-method {
+  width: 52px;
+  flex-shrink: 0;
+  font: var(--weight-strong) var(--text-xs) var(--font-mono);
+  color: var(--syn-keyword);
+}
+.http-url {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}
+.http-ok {
+  color: var(--success);
+}
+.http-redirect {
+  color: var(--info);
+}
+
+.http-view {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.http-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 30px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: var(--text-sm);
+}
+.http-status > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.http-code-chip {
+  font-weight: var(--weight-strong);
+  font-variant-numeric: tabular-nums;
+}
+.http-subtabs {
+  border-bottom: 0;
+  padding: 0;
+}
+.http-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.http-code {
+  height: 100%;
+}
+.http-image {
+  max-width: 100%;
+  max-height: 100%;
+  margin: var(--space-3);
+}
+.http-headers {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+.http-headers td {
+  padding: 3px var(--space-3);
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+  word-break: break-all;
+}
+.http-headers td:first-child {
+  width: 30%;
+  color: var(--syn-property);
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+}

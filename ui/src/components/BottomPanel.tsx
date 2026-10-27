@@ -1,4 +1,4 @@
-import { Bookmark as BookmarkIcon, Container as ContainerIcon, Database as DatabaseIcon, Bug, FlaskConical, GitBranch, ListTodo, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { Bookmark as BookmarkIcon, Container as ContainerIcon, Database as DatabaseIcon, DatabaseZap, Bug, FlaskConical, GitBranch, Globe, ListTodo, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, ShieldCheck, Square, SquareTerminal, Trash2, X } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -27,6 +27,12 @@ import { useInspections } from '../store/inspections';
 import { useDb } from '../store/database';
 import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
+import { HttpPanel } from './HttpPanel';
+import { EfPanel } from './EfPanel';
+import { CoveragePanel } from './CoveragePanel';
+import { formatPercent, useCoverage } from '../store/coverage';
+import { useEf } from '../store/ef';
+import { useHttp } from '../store/http';
 
 export function BottomPanel() {
   const visible = useUi((s) => s.bottomVisible);
@@ -41,6 +47,9 @@ export function BottomPanel() {
   const testsRunning = useTests((s) => s.running.size > 0);
   const inspecting = useInspections((s) => s.running);
   const dbRunning = useDb((s) => Object.values(s.runs).some((r) => r.running));
+  const httpRunning = useHttp((s) => s.history.some((h) => h.running));
+  const efBusy = useEf((s) => s.loading || !!s.busy);
+  const coverage = useCoverage((s) => s.data);
   const [start, setStart] = useState(height);
   if (!visible) return null;
   const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
@@ -50,6 +59,9 @@ export function BottomPanel() {
     { id: 'debug', label: 'Debug', icon: debugStatus !== 'idle' ? <Bug size={14} style={{ color: debugStatus === 'stopped' ? 'var(--warning)' : 'var(--success)' }} /> : <Bug size={14} /> },
     { id: 'build', label: 'Build', icon: runningIn('build') ? <LoaderCircle size={14} className="spin" /> : <Hammer size={14} /> },
     { id: 'tests', label: 'Tests', icon: testsRunning ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} /> },
+    { id: 'coverage', label: 'Coverage', icon: <ShieldCheck size={14} />, badge: coverage ? <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>{formatPercent(coverage.covered, coverage.total)}</span> : null },
+    { id: 'http', label: 'HTTP Client', icon: httpRunning ? <LoaderCircle size={14} className="spin" /> : <Globe size={14} /> },
+    { id: 'ef', label: 'EF Core', icon: efBusy ? <LoaderCircle size={14} className="spin" /> : <DatabaseZap size={14} /> },
     { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
     { id: 'nuget', label: 'NuGet', icon: <Package size={14} /> },
     {
@@ -96,6 +108,9 @@ export function BottomPanel() {
           {tab === 'build' && <ProcessPane group="build" />}
           {tab === 'terminal' && <TerminalPane />}
           {tab === 'tests' && <TestsPanel />}
+          {tab === 'coverage' && <CoveragePanel />}
+          {tab === 'http' && <HttpPanel />}
+          {tab === 'ef' && <EfPanel />}
           {tab === 'git' && <GitLogPanel />}
           {tab === 'nuget' && <NugetWindow />}
           {tab === 'problems' && <ProblemsPane />}

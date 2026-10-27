@@ -43,6 +43,46 @@ public sealed class AiService(EventHub hub, WorkspaceService workspace, AiTools 
         _ = Task.Run(() => RunAsync(req, s, s.Run.Token));
     }
 
+    private const string InlineSystem = """
+        You are the inline code completion of an IDE. You get the code before the caret (<prefix>) and after it (<suffix>).
+        Reply with only the text to insert at the caret: no explanation, no markdown fences, no repeat of the code before
+        or after the caret. Finish the current line, statement or block the way the surrounding code suggests (at most
+        about 15 lines), matching its indentation and style. If nothing useful fits, reply with nothing.
+        """;
+
+    /// <summary>Ghost text at the caret: one short, fast model turn (no tools, no thinking, few tokens).</summary>
+    public async Task<string> CompleteInlineAsync(AiInlineRequest r, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(r.Provider.Model)) throw new ArgumentException("Choose a model in Settings › AI");
+        var prefix = r.Prefix.Length > 6000 ? r.Prefix[^6000..] : r.Prefix;
+        var suffix = r.Suffix.Length > 2000 ? r.Suffix[..2000] : r.Suffix;
+        var message = $"File: {Path.GetFileName(r.Path)} ({r.Language})\n<prefix>{prefix}</prefix><suffix>{suffix}</suffix>";
+        var cfg = r.Provider with { MaxTokens = r.Provider.MaxTokens ?? 256, Fast = true };
+        var text = new StringBuilder();
+        var turn = await Backend(cfg).StreamTurnAsync(cfg, InlineSystem, [new AiMessage { Role = "user", Blocks = [new AiBlock { Kind = "text", Text = message }] }], [], t => text.Append(t), _ => { }, ct);
+        var answer = text.Length > 0 ? text.ToString() : string.Concat(turn.Blocks.Where(b => b.Kind == "text").Select(b => b.Text));
+        return CleanInline(answer, prefix, suffix);
+    }
+
+    /// <summary>Strips fences and the parts of the answer that repeat the code around the caret.</summary>
+    internal static string CleanInline(string answer, string prefix, string suffix)
+    {
+        var s = answer.Replace("\r\n", "\n");
+        var fence = System.Text.RegularExpressions.Regex.Match(s, @"^\s*```[\w#+-]*\n([\s\S]*?)\n?```\s*$");
+        if (fence.Success) s = fence.Groups[1].Value;
+        s = s.Replace("<cursor/>", "").Replace("</prefix>", "").Replace("<suffix>", "");
+        // the model repeated the start of the current line
+        var line = prefix[(prefix.LastIndexOf('\n') + 1)..];
+        if (line.Trim().Length > 0 && s.StartsWith(line, StringComparison.Ordinal)) s = s[line.Length..];
+        else if (line.Trim().Length > 0 && s.TrimStart().StartsWith(line.Trim(), StringComparison.Ordinal) && line.TrimStart().Length >= 3) s = s.TrimStart()[line.Trim().Length..];
+        // … or what already follows the caret
+        var next = suffix.Split('\n')[0].Trim();
+        if (next.Length > 0 && s.TrimEnd().EndsWith(next, StringComparison.Ordinal)) s = s.TrimEnd()[..^next.Length];
+        var lines = s.Split('\n');
+        if (lines.Length > 20) s = string.Join('\n', lines.Take(20));
+        return s.TrimEnd();
+    }
+
     public void Stop(string sessionId)
     {
         if (sessions.TryGetValue(sessionId, out var s)) s.Run?.Cancel();

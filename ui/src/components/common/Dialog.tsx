@@ -17,6 +17,9 @@ export function Dialog({
   className?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  // callers pass a new onClose every render; keep the latest so the focus effect runs only on open
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     const first = ref.current?.querySelector<HTMLElement>('[autofocus], input, select, textarea, button.btn-primary');
@@ -24,7 +27,7 @@ export function Dialog({
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        closeRef.current();
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -32,7 +35,7 @@ export function Dialog({
       window.removeEventListener('keydown', onKey, true);
       prev?.focus?.();
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div ref={ref} className={`dialog ${className ?? ''}`} role="dialog" aria-modal="true" style={{ width }}>

@@ -202,7 +202,7 @@ export type EngineEvent =
   | ({ type: 'proc.started' } & ProcDto)
   | ({ type: 'proc.exit' } & ProcDto)
   | { type: 'proc.output'; id: string; text: string }
-  | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended'; [k: string]: unknown }
+  | { type: 'debug.state' | 'debug.stopped' | 'debug.output' | 'debug.ended' | 'debug.diag' | 'debug.diag.event'; [k: string]: unknown }
   | { type: 'git.changed' }
   | { type: 'memory.pressure'; usedMb: number; limitMb: number; projects: number }
   | { type: 'term.output'; id: string; data: string }

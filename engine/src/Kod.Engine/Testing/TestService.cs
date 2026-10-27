@@ -12,7 +12,8 @@ public sealed record TestCaseDto(string Id, string Name, string ClassName, strin
 
 public sealed record TestProjectDto(string Name, string ProjectPath, IReadOnlyList<TestCaseDto> Tests);
 
-public sealed record TestRunRequest(string? ProjectPath, IReadOnlyList<string>? Tests);
+/// <param name="Coverage">Collect code coverage (coverlet when the test projects reference coverlet.collector, else Microsoft Code Coverage) as Cobertura.</param>
+public sealed record TestRunRequest(string? ProjectPath, IReadOnlyList<string>? Tests, bool Coverage = false);
 
 public sealed record TestRunDto(string RunId, string ProcId, IReadOnlyList<string> Projects);
 
@@ -85,6 +86,7 @@ public sealed class TestService(WorkspaceService workspace, ProcessService proce
     public TestRunDto Run(TestRunRequest req)
     {
         var all = workspace.GetState().Projects.Where(p => p.Kind == "test").Select(p => p.Path).ToList();
+        if (req.ProjectPath is not null) req = req with { ProjectPath = PathUtil.Normalize(req.ProjectPath) };
         var target = req.ProjectPath ?? workspace.Target ?? (all.Count == 1 ? all[0] : null);
         if (target is null)
         {
@@ -95,6 +97,12 @@ public sealed class TestService(WorkspaceService workspace, ProcessService proce
         var dir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "kod-tests", runId);
         Directory.CreateDirectory(dir);
         var args = new List<string> { "test", target, "-nologo", "--results-directory", dir, "--logger", "trx", "--logger", "console;verbosity=normal" };
+        var projects = req.ProjectPath is not null || target.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ? new[] { target } : all.ToArray();
+        if (req.Coverage)
+        {
+            args.Add("--collect");
+            args.Add(projects.All(UsesCoverlet) ? "XPlat Code Coverage" : "Code Coverage;Format=cobertura");
+        }
         if (req.Tests is { Count: > 0 })
         {
             // FullyQualifiedName~X also matches theory rows and NUnit test cases of that method
@@ -102,10 +110,34 @@ public sealed class TestService(WorkspaceService workspace, ProcessService proce
             args.Add(string.Join('|', req.Tests.Select(t => $"FullyQualifiedName~{Escape(t)}")));
         }
         var title = req.Tests is { Count: 1 } ? $"Test {req.Tests[0].Split('.').Last()}" : $"Test {System.IO.Path.GetFileNameWithoutExtension(target)}";
+        if (req.Coverage) title += " with coverage";
         var proc = processes.Start(new StartRequest("test", title, "dotnet", args, System.IO.Path.GetDirectoryName(target)));
-        var projects = req.ProjectPath is not null || target.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) ? new[] { target } : all.ToArray();
         runs[runId] = (dir, projects);
         return new TestRunDto(runId, proc.Id, projects);
+    }
+
+    private static bool UsesCoverlet(string project)
+    {
+        try
+        {
+            return File.ReadAllText(project).Contains("coverlet.collector", StringComparison.OrdinalIgnoreCase);
+        }
+        catch (IOException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>The coverage of a run (every Cobertura report it wrote, merged), or null when it collected none.</summary>
+    public CoverageDto? Coverage(string runId)
+    {
+        if (!runs.TryGetValue(runId, out var run)) throw new InvalidOperationException("Unknown test run");
+        if (!Directory.Exists(run.Dir)) return null;
+        // coverlet writes each report twice (the attachment and a copy under In/<machine>): read each content once
+        var reports = Directory.EnumerateFiles(run.Dir, "*.cobertura.xml", SearchOption.AllDirectories)
+            .DistinctBy(f => (new FileInfo(f).Length, File.ReadAllText(f).GetHashCode()))
+            .ToList();
+        return reports.Count == 0 ? null : CoverageReader.Read(reports);
     }
 
     private static string Escape(string s) => s.Replace("(", "\\(").Replace(")", "\\)").Replace("|", "\\|").Replace("&", "\\&").Replace("!", "\\!");

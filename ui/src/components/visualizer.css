@@ -1,0 +1,109 @@
+/* Debugger visualizers. Design tokens only. */
+
+.vis-dialog .dialog-body {
+  display: flex;
+  flex-direction: column;
+  height: min(70vh, 640px);
+  min-height: 0;
+}
+.vis-title {
+  font-family: var(--font-mono);
+  font-size: var(--text-md);
+}
+.vis-table-wrap {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  gap: var(--space-2);
+}
+.vis-toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-sm);
+}
+.vis-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.vis-grid {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+.vis-grid table {
+  border-collapse: collapse;
+  font: var(--text-xs) / 1.5 var(--font-mono);
+  min-width: 100%;
+}
+.vis-grid th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  text-align: left;
+  font-family: var(--font-ui);
+  font-weight: var(--weight-strong);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border-subtle);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.vis-grid td {
+  padding: 2px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+  border-right: 1px solid var(--border-subtle);
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vis-grid td:first-child {
+  color: var(--fg-muted);
+}
+.vis-grid tbody tr:hover {
+  background: var(--bg-hover);
+}
+.vis-grid td.str {
+  color: var(--syn-string);
+}
+.vis-grid td.num {
+  color: var(--syn-number);
+}
+.vis-grid td.nul {
+  color: var(--syn-keyword);
+}
+.vis-text {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.vis-html {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+/* the View link in the Variables tree */
+.vis-link {
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--accent);
+  font: var(--text-xs) var(--font-ui);
+  cursor: pointer;
+}
+.vis-link:hover {
+  background: var(--accent-soft);
+}

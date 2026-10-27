@@ -7,7 +7,12 @@ namespace Kod.Engine.Ai;
 /// completions API (OpenAI, GLM / Zhipu, Gemini, DeepSeek, Mistral, Grok, Qwen, OpenRouter, Ollama, …).
 /// An empty ApiKey falls back to the provider's environment variable.
 /// </summary>
-public sealed record AiProviderConfig(string Kind, string Model, string? BaseUrl = null, string? ApiKey = null, string? Effort = null, string? KeyEnv = null);
+/// <param name="MaxTokens">A cap on the answer (inline completions); null = the backend's default.</param>
+/// <param name="Fast">No extended thinking: inline completions need an answer in a second, not reasoning.</param>
+public sealed record AiProviderConfig(string Kind, string Model, string? BaseUrl = null, string? ApiKey = null, string? Effort = null, string? KeyEnv = null, int? MaxTokens = null, bool Fast = false);
+
+/// <summary>An inline completion request: the code around the caret.</summary>
+public sealed record AiInlineRequest(AiProviderConfig Provider, string Path, string Language, string Prefix, string Suffix);
 
 /// <summary>What the editor shows right now, sent with every message.</summary>
 public sealed record AiContext(string? ActiveFile = null, string? Selection = null, int? SelectionStartLine = null, IReadOnlyList<string>? OpenFiles = null);
