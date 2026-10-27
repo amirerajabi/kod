@@ -104,6 +104,7 @@ export function appMenu(): MenuItem[] {
         c('nav.base'),
         c('nav.derived'),
         c('nav.usages'),
+        c('nav.showUsages'),
         c('nav.peekUsages'),
         c('nav.related'),
         'separator',

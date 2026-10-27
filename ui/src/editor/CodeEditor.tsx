@@ -1,12 +1,12 @@
 import { ChevronRight } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
-import type { LocationDto, SymbolDto } from '../api/types';
+import type { SymbolDto } from '../api/types';
 import { relative } from '../lib/paths';
 import { saveHooks, useEditors } from '../store/editors';
 import { useSettings } from '../store/settings';
 import { useUi } from '../store/ui';
-import { useUsages } from '../store/usages';
+import { searchUsages, useUsages, type UsageRequest } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { scheduleDiagnostics } from './csharp';
 import { attachDebugDecorations, toggleBreakpointAtCursor } from './debugEditor';
@@ -29,20 +29,42 @@ export function editorAction(id: string): void {
   void ed.getAction(id)?.run();
 }
 
-export async function findUsages(): Promise<void> {
+/** What Find / Show Usages search for: the symbol at the caret of a C# editor. */
+function usageRequest(): UsageRequest | null {
   const ed = editorInstance;
   const model = ed?.getModel();
   const entry = entryOfModel(model);
   const pos = ed?.getPosition();
-  if (!ed || !model || !entry || !pos || model.getLanguageId() !== 'csharp') return;
+  if (!ed || !model || !entry || !pos || model.getLanguageId() !== 'csharp') return null;
   const word = model.getWordAtPosition(pos)?.word ?? 'symbol';
-  useUsages.getState().set({ title: word, loading: true, items: [] });
+  return { path: entry.path, text: model.getValue(), line: pos.lineNumber, column: pos.column, word };
+}
+
+/** Find Usages (Alt+F7): the results in the Find tool window. */
+export async function findUsages(): Promise<void> {
+  const req = usageRequest();
+  if (!req) return;
+  useUsages.getState().set({ popup: null });
   useUi.getState().showBottom('usages');
-  try {
-    const items = await api.post<LocationDto[]>('/intel/references', { path: entry.path, text: model.getValue(), line: pos.lineNumber, column: pos.column });
-    useUsages.getState().set({ items, loading: false });
-  } catch {
-    useUsages.getState().set({ items: [], loading: false });
+  await searchUsages(req);
+}
+
+/** Show Usages (Ctrl+Alt+F7, Rider's): a popup under the caret; a single usage is opened right away. */
+export async function showUsages(): Promise<void> {
+  const ed = editorInstance;
+  const req = usageRequest();
+  const pos = ed?.getPosition();
+  if (!ed || !req || !pos) return;
+  const at = ed.getScrolledVisiblePosition(pos);
+  const box = ed.getDomNode()!.getBoundingClientRect();
+  const x = box.left + (at?.left ?? 0);
+  const y = box.top + (at ? at.top + at.height : 0) + 2;
+  useUsages.getState().set({ popup: { x, y } });
+  const items = await searchUsages(req);
+  const usages = items?.filter((u) => u.kind !== 'declaration') ?? [];
+  if (usages.length === 1 && useUsages.getState().popup) {
+    useUsages.getState().set({ popup: null });
+    void useEditors.getState().open(usages[0].path, { range: usages[0].range });
   }
 }
 
@@ -111,6 +133,9 @@ export function CodeEditor() {
       ed.addAction({ id: `kod.${id}`, label, contextMenuGroupId: '0_ai', contextMenuOrder: i, run: () => void import('../app/commands').then((m) => m.runCommand(id)) });
     }
 
+    ed.addAction({ id: 'kod.usages.find', label: 'Find Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2, run: () => void findUsages() });
+    ed.addAction({ id: 'kod.usages.show', label: 'Show Usages', contextMenuGroupId: 'navigation', contextMenuOrder: 2.1, run: () => void showUsages() });
+
     // right-click › Local History (Rider's): the file, or only the selected lines
     ed.addAction({ id: 'kod.history.show', label: 'Local History: Show History', contextMenuGroupId: '9_history', contextMenuOrder: 0, run: () => void import('../app/commands').then((m) => m.runCommand('history.show')) });
     ed.addAction({
@@ -129,6 +154,7 @@ export function CodeEditor() {
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.RightArrow, () => ed.trigger('kod', 'editor.action.inlineSuggest.acceptNextWord', {}), 'inlineSuggestionVisible');
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyL, () => ed.trigger('kod', 'editor.action.formatDocument', {}));
     ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.F7, () => void findUsages());
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.F7, () => void showUsages());
     ed.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F6, () => ed.trigger('kod', 'editor.action.rename', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyB, () => ed.trigger('kod', 'editor.action.revealDefinition', {}));
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyB, () => ed.trigger('kod', 'editor.action.goToImplementation', {}));

@@ -2,7 +2,7 @@
 // The palette lists them; a capture-phase key listener runs the app-level ones even while Monaco has focus.
 import { api, errorText } from '../api/client';
 import type { DiagnosticDto } from '../api/types';
-import { editorAction, findUsages, getEditor } from '../editor/CodeEditor';
+import { editorAction, findUsages, getEditor, showUsages } from '../editor/CodeEditor';
 import { toggleBreakpointAtCursor } from '../editor/debugEditor';
 import { debugActive, startDebugging, step, stopDebugging, useDebug } from '../store/debug';
 import { isMac } from '../platform';
@@ -128,6 +128,7 @@ export const COMMANDS: Command[] = [
   { id: 'nav.definition', title: 'Go to Declaration', category: 'Navigate', keys: ['F12', 'Ctrl+B'], run: () => editorAction('editor.action.revealDefinition') },
   { id: 'nav.implementation', title: 'Go to Implementation', category: 'Navigate', keys: ['Ctrl+Alt+B'], run: () => editorAction('editor.action.goToImplementation') },
   { id: 'nav.usages', title: 'Find Usages', category: 'Navigate', keys: ['Alt+F7'], run: () => void findUsages() },
+  { id: 'nav.showUsages', title: 'Show Usages', category: 'Navigate', keys: ['Ctrl+Alt+F7'], run: () => void showUsages() },
   { id: 'nav.peekUsages', title: 'Peek Usages', category: 'Navigate', keys: ['Shift+F12'], run: () => editorAction('editor.action.referenceSearch.trigger') },
   { id: 'nav.fileStructure', title: 'File Structure', category: 'Navigate', keys: ['Ctrl+F12'], run: () => editorAction('editor.action.quickOutline') },
   { id: 'nav.findInFiles', title: 'Find in Files', category: 'Navigate', keys: ['Ctrl+Shift+F'], run: () => useUi.getState().showDock('search'), global: true },

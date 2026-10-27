@@ -329,3 +329,21 @@ export interface InspectionDto {
   unnecessary: boolean;
   fixable: boolean;
 }
+
+/** A usage with Rider's detail: access kind, containing member and project; the highlight is in `line`'s coordinates. */
+export interface UsageDto {
+  path: string;
+  range: RangeDto;
+  line: string;
+  highlightStart: number;
+  highlightEnd: number;
+  kind: 'declaration' | 'invocation' | 'creation' | 'read' | 'write' | 'readwrite' | 'reference' | 'type' | 'typeof' | 'base' | 'attribute' | 'nameof' | 'import';
+  container?: string;
+  project: string;
+}
+
+export interface UsagesDto {
+  symbol: string;
+  symbolKind: string;
+  usages: UsageDto[];
+}
