@@ -44,14 +44,14 @@ public sealed class AnthropicBackend : IAiBackend
         var p = new MessageCreateParams
         {
             Model = cfg.Model,
-            MaxTokens = MaxTokens,
+            MaxTokens = cfg.MaxTokens ?? MaxTokens,
             System = new List<BetaTextBlockParam> { new() { Text = system } },
             Messages = history.Select(ToParam).ToList(),
             // cache the tools, system prompt and the conversation so far
             CacheControl = new BetaCacheControlEphemeral(),
         };
         if (tools.Count > 0) p = p with { Tools = tools.Select(ToTool).ToList() };
-        if (modern)
+        if (modern && !cfg.Fast)
         {
             p = p with
             {

@@ -11,7 +11,7 @@ import { useProblems } from '../store/problems';
 import { dotnetBuild, dotnetRun, startTerminal, stopAll } from '../store/procs';
 import { effectiveTheme, useSettings } from '../store/settings';
 import { askText, toast, useUi } from '../store/ui';
-import { useWorkspace } from '../store/workspace';
+import { startupProject, useWorkspace } from '../store/workspace';
 import { openSettings } from '../components/settings/nav';
 import { closeWorkspace, createItem, currentFilePath, goToLine, openFolder, openSolutionFile } from './actions';
 import { checkForUpdatesNow } from './updates';
@@ -36,6 +36,7 @@ import { importFromAppSettings, openConsole, useDb } from '../store/database';
 import { debugInDocker, runInDocker, stopDockerRun } from '../store/docker';
 import { showConflicts } from '../components/GitDialogs';
 import { freeMemory, useMemory } from '../store/memory';
+import { generateHttpFile } from '../store/http';
 
 /** Keeps only the run configuration's project loaded (the rest leave the solution until loaded again). */
 function unloadOtherProjects(): Promise<void> {
@@ -158,6 +159,20 @@ export const COMMANDS: Command[] = [
 
   // Docker
   { id: 'view.services', title: 'Services (Docker)', category: 'View', keys: ['Alt+Shift+8'], run: () => useUi.getState().showBottom('services'), global: true },
+  { id: 'view.http', title: 'HTTP Client', category: 'View', run: () => useUi.getState().showBottom('http') },
+  { id: 'ai.toggleInline', title: 'Toggle AI Inline Completions', category: 'AI', run: () => useSettings.getState().update({ aiInline: !useSettings.getState().prefs.aiInline }) },
+  { id: 'view.ef', title: 'EF Core', category: 'View', run: () => useUi.getState().showBottom('ef') },
+  { id: 'view.coverage', title: 'Coverage', category: 'View', run: () => useUi.getState().showBottom('coverage') },
+  {
+    id: 'http.generate',
+    title: 'Generate HTTP Requests for the Run Configuration',
+    category: 'Run',
+    run: needsRoot(() => {
+      const p = startupProject();
+      if (!p) toast('info', 'Choose a run configuration first');
+      else return generateHttpFile(p.path);
+    }),
+  },
   { id: 'run.docker', title: 'Run in Docker', category: 'Run', run: needsRoot(() => runInDocker()) },
   { id: 'run.debugDocker', title: 'Debug in Docker (fast mode)', category: 'Run', run: needsRoot(() => debugInDocker()) },
   { id: 'run.stopDocker', title: 'Stop Docker Container (Run in Docker)', category: 'Run', run: needsRoot(() => stopDockerRun()) },

@@ -29,6 +29,8 @@ export interface Variable {
   value: string;
   type?: string;
   variablesReference: number;
+  /** The expression for this variable (the visualizers evaluate it). */
+  evaluateName?: string;
 }
 
 export type DebugStatus = 'idle' | 'building' | 'starting' | 'running' | 'stopped';

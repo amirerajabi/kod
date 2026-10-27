@@ -91,6 +91,7 @@ export function CodeEditor() {
       renderLineHighlight: 'all',
       suggest: { showStatusBar: true, preview: true, selectionMode: 'always' },
       inlayHints: { enabled: 'on' },
+      inlineSuggest: { enabled: true, mode: 'subwordSmart', showToolbar: 'onHover' },
       lightbulb: { enabled: monaco.editor.ShowLightbulbIconMode.OnCode },
       padding: { top: 6 },
       mouseWheelZoom: true,
@@ -112,6 +113,9 @@ export function CodeEditor() {
 
     // Rider keys on top of Monaco's own (F12, Shift+F12, F2, Ctrl+Space, Ctrl+Shift+Space...)
     ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Enter, () => ed.trigger('kod', 'editor.action.quickFix', {}));
+    // AI inline completions: Alt+\ asks for a suggestion now, Ctrl+Right takes its next word
+    ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Backslash, () => ed.trigger('kod', 'editor.action.inlineSuggest.trigger', {}));
+    ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.RightArrow, () => ed.trigger('kod', 'editor.action.inlineSuggest.acceptNextWord', {}), 'inlineSuggestionVisible');
     ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyMod.Alt | monaco.KeyCode.KeyL, () => ed.trigger('kod', 'editor.action.formatDocument', {}));
     ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.F7, () => void findUsages());
     ed.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F6, () => ed.trigger('kod', 'editor.action.rename', {}));

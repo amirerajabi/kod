@@ -1,6 +1,7 @@
 // The unit test explorer: tests discovered by the engine (Roslyn), runs through `dotnet test`, and the results of the
 // last run per test (theory rows and NUnit cases are kept as children).
 import { create } from 'zustand';
+import { formatPercent, setCoverage, type Coverage } from './coverage';
 import { api, errorText } from '../api/client';
 import type { ProcDto } from '../api/types';
 import { useEditors } from './editors';
@@ -106,7 +107,7 @@ function waitForExit(procId: string): Promise<ProcDto | null> {
  * Runs tests: a list of test ids (methods; a class or namespace prefix runs everything under it), or every test of a
  * project / the solution when `ids` is empty.
  */
-export async function runTests(ids: string[] = [], projectPath?: string): Promise<void> {
+export async function runTests(ids: string[] = [], projectPath?: string, coverage = false): Promise<void> {
   if (useTests.getState().runningAll || useTests.getState().running.size) {
     toast('info', 'Tests are already running');
     return;
@@ -119,7 +120,7 @@ export async function runTests(ids: string[] = [], projectPath?: string): Promis
   useTests.setState({ running: new Set(covered), runningAll: !ids.length });
   useUi.getState().showBottom('tests');
   try {
-    const run = await api.post<{ runId: string; procId: string }>('/tests/run', { projectPath: owner, tests: ids.length ? ids : null });
+    const run = await api.post<{ runId: string; procId: string }>('/tests/run', { projectPath: owner, tests: ids.length ? ids : null, coverage });
     const exit = await waitForExit(run.procId);
     const results = await api.get<TestResult[]>(`/tests/results/${run.runId}`);
     const byId: Record<string, TestResult[]> = {};
@@ -136,11 +137,23 @@ export async function runTests(ids: string[] = [], projectPath?: string): Promis
       useUi.getState().toast({ kind: 'error', text: 'No test results', detail: exit?.exitCode ? 'The build or the test run failed — see the Build window.' : undefined, action: { label: 'Show output', run: () => useUi.getState().showBottom('build') } }, 8000);
     } else if (failed) toast('error', `${failed} test${failed === 1 ? '' : 's'} failed`, `${passed} passed`, 5000);
     else toast('success', `${passed} test${passed === 1 ? '' : 's'} passed`, undefined, 3000);
+    if (coverage && results.length) await loadCoverage(run.runId);
   } catch (e) {
     toast('error', 'Could not run the tests', errorText(e));
   } finally {
     useTests.setState({ running: new Set(), runningAll: false });
   }
+}
+
+/** The coverage the run collected, shown in the editor and the Coverage window. */
+async function loadCoverage(runId: string): Promise<void> {
+  const data = await api.get<Coverage | undefined>(`/tests/coverage/${runId}`).catch(() => undefined);
+  if (!data) {
+    toast('warning', 'No coverage was collected', 'The test project needs Microsoft.NET.Test.Sdk 17.8 or later, or the coverlet.collector package.', 8000);
+    return;
+  }
+  setCoverage(data);
+  useUi.getState().toast({ kind: 'info', text: `Coverage: ${formatPercent(data.covered, data.total)} of lines`, detail: `${data.covered} of ${data.total} lines in ${data.files.length} files`, action: { label: 'Show coverage', run: () => useUi.getState().showBottom('coverage') } }, 6000);
 }
 
 export function runFailed(): void {

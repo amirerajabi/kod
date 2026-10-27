@@ -7,6 +7,9 @@ import { refreshCodeVision, registerCodeVision } from '../editor/codeVision';
 import { todosMaybeChanged } from '../components/TodoPanel';
 import { registerPostfix } from '../editor/postfix';
 import { registerSql } from '../editor/sql';
+import { registerHttp } from '../editor/http';
+import { registerCoverage } from '../editor/coverage';
+import { registerAiInline } from '../editor/aiInline';
 import { allEntries, isDirty, replaceText } from '../editor/models';
 import { basename, samePath } from '../lib/paths';
 import { platform } from '../platform';
@@ -25,6 +28,7 @@ import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
 import { registerDebugHover } from '../editor/debugEditor';
 import { onMemoryPressure, startMemoryMonitor, syncMemorySettings } from '../store/memory';
+import { onDiagEvent } from '../store/diagnostics';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 
@@ -73,6 +77,9 @@ export async function boot(): Promise<void> {
   registerCodeVision();
   registerPostfix();
   registerSql();
+  registerHttp();
+  registerCoverage();
+  registerAiInline();
   void refreshKeys();
   startMemoryMonitor();
   window.addEventListener('focus', () => refreshGit(100));
@@ -126,6 +133,10 @@ export async function boot(): Promise<void> {
       case 'debug.output':
       case 'debug.ended':
         onDebugEvent(e);
+        break;
+      case 'debug.diag':
+      case 'debug.diag.event':
+        onDiagEvent(e);
         break;
       case 'proc.started':
       case 'proc.output':

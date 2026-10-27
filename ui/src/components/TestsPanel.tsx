@@ -1,4 +1,4 @@
-import { Check, ChevronDown, ChevronRight, Circle, FlaskConical, LoaderCircle, Play, RefreshCw, RotateCcw, X } from 'lucide-react';
+import { Check, ChevronDown, ChevronRight, Circle, FlaskConical, LoaderCircle, Play, RefreshCw, RotateCcw, ShieldCheck, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { basename } from '../lib/paths';
 import { useEditors } from '../store/editors';
@@ -89,7 +89,7 @@ export function TestsPanel() {
   const failed = states.filter((s) => s === 'failed').length;
 
   const leafIds = (n: Node): string[] => (n.test ? [n.test.id] : n.children.flatMap(leafIds));
-  const run = (n: Node) => (n.test || n.runId ? void runTests([n.runId]) : void runTests([], n.projectPath));
+  const run = (n: Node, coverage = false) => (n.test || n.runId ? void runTests([n.runId], undefined, coverage) : void runTests([], n.projectPath, coverage));
   const open = (t: TestCase) => void useEditors.getState().open(t.path, { line: t.line, column: 1 });
 
   const renderNode = (n: Node, depth: number): ReactNode => {
@@ -107,6 +107,7 @@ export function TestsPanel() {
           onContextMenu={(e) =>
             showContextMenu(e, [
               { label: 'Run', icon: <Play size={14} />, run: () => run(n) },
+              { label: 'Run with Coverage', icon: <ShieldCheck size={14} />, run: () => run(n, true) },
               ...(n.test ? [{ label: 'Go to Test', run: () => open(n.test!) }] : []),
             ])
           }
@@ -149,6 +150,9 @@ export function TestsPanel() {
       <div className="console-toolbar">
         <button className="icon-btn sm run" title="Run all tests" onClick={() => void runTests()} disabled={running.size > 0}>
           <Play size={14} />
+        </button>
+        <button className="icon-btn sm" title="Run all tests with coverage" onClick={() => void runTests([], undefined, true)} disabled={running.size > 0}>
+          <ShieldCheck size={14} />
         </button>
         <button className="icon-btn sm" title="Run failed tests" onClick={runFailed} disabled={running.size > 0 || failed === 0}>
           <RotateCcw size={14} />

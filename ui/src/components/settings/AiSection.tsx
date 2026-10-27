@@ -5,7 +5,8 @@ import { useEffect, useState } from 'react';
 import { errorText } from '../../api/client';
 import { PROVIDERS, providerById } from '../../ai/providers';
 import { platform } from '../../platform';
-import { baseUrlOf, fetchModels, modelOf, refreshKeys, saveKey, useAi, type AiEffort, type AiMode } from '../../store/ai';
+import { baseUrlOf, defaultInlineModel, fetchModels, modelOf, refreshKeys, saveKey, useAi, type AiEffort, type AiMode } from '../../store/ai';
+import { useSettings } from '../../store/settings';
 import { toast } from '../../store/ui';
 import { Card, Row, Segmented, Select, ToggleRow } from './controls';
 
@@ -142,6 +143,24 @@ export function AiSection() {
         )}
         <ToggleRow id="ai-ctx" label="Send the current file and selection" hint="The active file's name and the selected text go with every message" keywords="ai context selection file" checked={config.sendContext} onChange={(v) => set({ sendContext: v })} />
       </Card>
+      <InlineCard />
     </>
+  );
+}
+
+/** AI inline completions: ghost text while typing, from the provider above (a small, fast model by default). */
+function InlineCard() {
+  const s = useSettings((x) => x.prefs);
+  const config = useAi((x) => x.config);
+  return (
+    <Card title="Inline completions" description="Suggestions in grey as you type, like GitHub Copilot. Tab accepts, Ctrl+→ accepts a word, Esc dismisses, Alt+\ asks for one. Each pause in typing sends the code around the caret to your provider.">
+      <ToggleRow id="ai-inline" label="AI inline completions" hint="Off in Power Save Mode" keywords="ai inline completion ghost text copilot suggestions autocomplete" checked={s.aiInline} onChange={(v) => useSettings.getState().update({ aiInline: v })} />
+      <Row label="Completion model" htmlFor="ai-inline-model" hint={`Empty: ${defaultInlineModel(config.provider) || 'the chat model'} (a fast model keeps suggestions quick and cheap)`} keywords="ai inline completion model fast haiku">
+        <input id="ai-inline-model" className="input" value={s.aiInlineModel} placeholder={defaultInlineModel(config.provider) || modelOf(config.provider)} onChange={(e) => useSettings.getState().update({ aiInlineModel: e.target.value.trim() })} spellCheck={false} />
+      </Row>
+      <Row label="Wait before asking" htmlFor="ai-inline-delay" hint="How long typing must pause before a suggestion is requested" keywords="ai inline delay debounce">
+        <Select<number> id="ai-inline-delay" value={s.aiInlineDelay} options={[[200, '0.2 s'], [400, '0.4 s'], [700, '0.7 s'], [1200, '1.2 s']]} onChange={(v) => useSettings.getState().update({ aiInlineDelay: v })} />
+      </Row>
+    </Card>
   );
 }

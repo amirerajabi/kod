@@ -62,6 +62,14 @@ public static class Endpoints
         api.MapPost("/workspace/open", (OpenBody b, WorkspaceService ws) => ws.Open(b.Path, b.Unloaded));
         api.MapPost("/workspace/unload", (UnloadBody b, WorkspaceService ws) => ws.SetUnloaded(b.Paths, b.Unload));
 
+        // ---- HTTP Client (.http files)
+        api.MapPost("/http/send", (Kod.Engine.Http.HttpSendRequest r, Kod.Engine.Http.HttpRequestService s, CancellationToken ct) => s.SendAsync(r, ct));
+        api.MapGet("/http/endpoints", (string project, Kod.Engine.Http.HttpRequestService s, CancellationToken ct) => s.EndpointsAsync(project, ct));
+
+        // ---- EF Core
+        api.MapGet("/ef/projects", (Kod.Engine.Database.EfService s) => s.Projects());
+        api.MapPost("/ef/scaffold", (Kod.Engine.Database.EfScaffoldRequest r, Kod.Engine.Database.EfService s) => s.Scaffold(r));
+
         // ---- memory
         api.MapGet("/memory", (MemoryService m) => m.Stats());
         api.MapPost("/memory/trim", (TrimBody b, MemoryService m) => m.TrimAsync(b.Deep, b.Deep ? "Free memory (deep)" : "Free memory"));
@@ -181,6 +189,7 @@ public static class Endpoints
         debug.MapPost("/scopes", (FrameBody b, DebugService d, CancellationToken ct) => d.ScopesAsync(b.FrameId, ct));
         debug.MapPost("/variables", (VariablesBody b, DebugService d, CancellationToken ct) => d.VariablesAsync(b.Reference, ct));
         debug.MapPost("/evaluate", (EvaluateBody b, DebugService d, CancellationToken ct) => d.EvaluateAsync(b.Expression, b.FrameId, b.Context ?? "repl", ct));
+        debug.MapPost("/visualize", (VisualizeRequest r, DebugService d, CancellationToken ct) => d.VisualizeAsync(r, ct));
 
         // ---- Git
         var git = api.MapGroup("/git");
@@ -224,6 +233,7 @@ public static class Endpoints
         api.MapGet("/tests/discover", (TestService t, CancellationToken ct) => t.DiscoverAsync(ct));
         api.MapPost("/tests/run", (TestRunRequest r, TestService t) => t.Run(r));
         api.MapGet("/tests/results/{runId}", (string runId, TestService t) => t.Results(runId));
+        api.MapGet("/tests/coverage/{runId}", (string runId, TestService t) => t.Coverage(runId) is { } c ? Results.Ok(c) : Results.NoContent());
 
         // ---- terminals (pseudo consoles)
         api.MapGet("/term", (TerminalService t) => t.List());
@@ -278,6 +288,17 @@ public static class Endpoints
             catch (Exception ex) when (ex is AiException or HttpRequestException or Anthropic.Exceptions.AnthropicException)
             {
                 return Results.Problem(ex.Message, statusCode: 400);
+            }
+        });
+        ai.MapPost("/inline", async (AiInlineRequest r, AiService a, CancellationToken ct) =>
+        {
+            try
+            {
+                return Results.Ok(new { text = await a.CompleteInlineAsync(r, ct) });
+            }
+            catch (Exception ex) when (ex is AiException or HttpRequestException or Anthropic.Exceptions.AnthropicException)
+            {
+                return Results.Json(new { error = ex.Message }, statusCode: 400);
             }
         });
 

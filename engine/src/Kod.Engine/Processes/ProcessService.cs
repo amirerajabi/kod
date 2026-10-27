@@ -5,7 +5,8 @@ using Kod.Engine.Infrastructure;
 
 namespace Kod.Engine.Processes;
 
-public sealed record StartRequest(string Kind, string Title, string File, IReadOnlyList<string> Args, string? Cwd, Dictionary<string, string>? Env = null);
+/// <param name="Mask">Secrets in the arguments (a connection string with its password) shown as ••• in the command line.</param>
+public sealed record StartRequest(string Kind, string Title, string File, IReadOnlyList<string> Args, string? Cwd, Dictionary<string, string>? Env = null, IReadOnlyList<string>? Mask = null);
 
 public sealed record ProcDto(string Id, string Kind, string Title, string CommandLine, string Cwd, long StartedAt, int? ExitCode, long? EndedAt);
 
@@ -53,7 +54,7 @@ public sealed class ProcessService(EventHub hub, ILogger<ProcessService> log) : 
 
         var process = new Process { StartInfo = psi, EnableRaisingEvents = true };
         var id = Guid.NewGuid().ToString("N")[..12];
-        var commandLine = string.Join(' ', new[] { req.File }.Concat(req.Args).Select(Quote));
+        var commandLine = string.Join(' ', new[] { req.File }.Concat(req.Args.Select(a => req.Mask?.Contains(a) == true ? "•••" : a)).Select(Quote));
         var info = new ProcDto(id, req.Kind, req.Title, commandLine, cwd, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(), null, null);
         try
         {

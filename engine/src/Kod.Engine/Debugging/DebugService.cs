@@ -17,7 +17,8 @@ public sealed record FrameDto(int Id, string Name, string? Path, int Line, int C
 
 public sealed record ScopeDto(string Name, int VariablesReference, bool Expensive);
 
-public sealed record VariableDto(string Name, string Value, string? Type, int VariablesReference);
+/// <param name="EvaluateName">The expression that evaluates to this variable (for the visualizers), when the debugger knows it.</param>
+public sealed record VariableDto(string Name, string Value, string? Type, int VariablesReference, string? EvaluateName = null);
 
 public sealed record EvaluateDto(string Result, string? Type, int VariablesReference);
 
@@ -27,7 +28,7 @@ public sealed record VerifiedBreakpointDto(int Line, bool Verified, string? Mess
 /// One debug session at a time: netcoredbg in DAP mode (--interpreter=vscode) over stdio. The engine is the DAP client;
 /// the UI talks to it with small requests and gets debug.* events (state, stopped with the call stack, output, ended).
 /// </summary>
-public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspace, Kod.Engine.Docker.DockerService docker, EventHub hub, ILogger<DebugService> log) : IDisposable
+public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspace, Kod.Engine.Docker.DockerService docker, LiveDiagnostics diagnostics, EventHub hub, ILogger<DebugService> log) : IDisposable
 {
     private readonly object sync = new();
     private Session? session;
@@ -41,6 +42,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
     public async Task<object> StartAsync(DebugStartRequest req, CancellationToken ct)
     {
         Stop();
+        req = req with { ProjectPath = PathUtil.Normalize(req.ProjectPath) };
         var project = workspace.CurrentSolution.Projects.FirstOrDefault(p => PathUtil.Equal(p.FilePath, req.ProjectPath))
                       ?? throw new InvalidOperationException("The project is not loaded yet");
         var program = project.OutputFilePath ?? throw new InvalidOperationException("The project has no output assembly");
@@ -69,6 +71,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         lock (sync) session = s;
         s.Ended += () =>
         {
+            diagnostics.Stop();
             lock (sync)
                 if (session == s) session = null;
             if (container is not null) _ = docker.RemoveAsync(container);
@@ -76,6 +79,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         try
         {
             await s.StartAsync(cwd, launchCwd, env, req.Breakpoints ?? [], req.StopAtEntry, ct);
+            if (!req.Docker) _ = WatchAsync(s);
         }
         catch
         {
@@ -83,6 +87,20 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
             throw;
         }
         return State();
+    }
+
+    /// <summary>Live diagnostics on the program: its id from the debugger's process event, else netcoredbg's child.</summary>
+    private async Task WatchAsync(Session s)
+    {
+        for (var i = 0; i < 40 && session == s; i++)
+        {
+            if ((s.DebuggeePid ?? (s.AdapterPid is { } a ? LiveDiagnostics.ChildOf(a) : null)) is { } pid)
+            {
+                diagnostics.Start(pid);
+                return;
+            }
+            await Task.Delay(250);
+        }
     }
 
     /// <summary>ASP.NET Core apps get their development environment and the URL of their first launch profile.</summary>
@@ -110,7 +128,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         return env;
     }
 
-    private Session Active() => session ?? throw new InvalidOperationException("No debug session");
+    internal Session Active() => session ?? throw new InvalidOperationException("No debug session");
 
     public Task<IReadOnlyList<VerifiedBreakpointDto>> SetBreakpointsAsync(string path, List<BreakpointDto> lines, CancellationToken ct) =>
         session is { } s ? s.SetBreakpointsAsync(path, lines, ct) : Task.FromResult<IReadOnlyList<VerifiedBreakpointDto>>([]);
@@ -119,6 +137,8 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
     public Task<IReadOnlyList<ScopeDto>> ScopesAsync(int frameId, CancellationToken ct) => Active().ScopesAsync(frameId, ct);
     public Task<IReadOnlyList<VariableDto>> VariablesAsync(int reference, CancellationToken ct) => Active().VariablesAsync(reference, ct);
     public Task<EvaluateDto> EvaluateAsync(string expression, int? frameId, string context, CancellationToken ct) => Active().EvaluateAsync(expression, frameId, context, ct);
+
+    public Task<VisualDto> VisualizeAsync(VisualizeRequest r, CancellationToken ct) => Visualizers.VisualizeAsync(Active(), r, ct);
 
     public void Stop()
     {
@@ -135,7 +155,7 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
 
     // ------------------------------------------------------------------ the DAP session
 
-    private sealed class Session(string exe, IReadOnlyList<string> adapterArgs, string program, EventHub hub, ILogger log) : IDisposable
+    internal sealed class Session(string exe, IReadOnlyList<string> adapterArgs, string program, EventHub hub, ILogger log) : IDisposable
     {
         private readonly ConcurrentDictionary<int, TaskCompletionSource<JsonObject>> pending = new();
         private readonly TaskCompletionSource initialized = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -147,6 +167,9 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
         public string Program { get; } = program;
         public string State { get; private set; } = "starting";
         public int? StoppedThread { get; private set; }
+        /// <summary>The program's process id, when the debugger reports it.</summary>
+        public int? DebuggeePid { get; private set; }
+        public int? AdapterPid => proc?.Id;
         public event Action? Ended;
 
         public async Task StartAsync(string hostCwd, string cwd, Dictionary<string, string> env, Dictionary<string, List<BreakpointDto>> breakpoints, bool stopAtEntry, CancellationToken ct)
@@ -246,11 +269,14 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                 : [];
         }
 
-        public async Task<IReadOnlyList<VariableDto>> VariablesAsync(int reference, CancellationToken ct)
+        public async Task<IReadOnlyList<VariableDto>> VariablesAsync(int reference, CancellationToken ct, int max = 500)
         {
-            var body = await RequestAsync("variables", new JsonObject { ["variablesReference"] = reference }, ct);
+            var args = new JsonObject { ["variablesReference"] = reference };
+            // big arrays: ask for the first ones only (the debugger may still send all; they are cut below)
+            if (max < 500) args["count"] = max;
+            var body = await RequestAsync("variables", args, ct);
             return body["variables"] is JsonArray arr
-                ? arr.Select(x => new VariableDto((string?)x?["name"] ?? "", (string?)x?["value"] ?? "", (string?)x?["type"], (int?)x?["variablesReference"] ?? 0)).Take(500).ToList()
+                ? arr.Select(x => new VariableDto((string?)x?["name"] ?? "", (string?)x?["value"] ?? "", (string?)x?["type"], (int?)x?["variablesReference"] ?? 0, (string?)x?["evaluateName"])).Take(max).ToList()
                 : [];
         }
 
@@ -393,6 +419,9 @@ public sealed class DebugService(DebugAdapter adapter, WorkspaceService workspac
                     {
                         case "initialized":
                             initialized.TrySetResult();
+                            break;
+                        case "process":
+                            DebuggeePid = (int?)body["systemProcessId"];
                             break;
                         case "stopped":
                             _ = OnStoppedAsync(body);

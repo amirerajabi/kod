@@ -50,6 +50,12 @@ export interface Settings {
   memoryWarnings: boolean;
   /** Finished build / run outputs kept per tool window (older ones are closed). */
   keepFinishedProcesses: number;
+  /** AI ghost-text suggestions while typing. */
+  aiInline: boolean;
+  /** The model for inline completions ('' = a fast default of the provider). */
+  aiInlineModel: string;
+  /** How long typing must pause before a suggestion is requested (ms). */
+  aiInlineDelay: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -87,11 +93,14 @@ export const DEFAULT_SETTINGS: Settings = {
   idleTrim: true,
   memoryWarnings: true,
   keepFinishedProcesses: 8,
+  aiInline: false,
+  aiInlineModel: '',
+  aiInlineDelay: 400,
 };
 
 /** What Power Save Mode turns off on top of the user's own choices. */
 function effective(p: Settings): Settings {
-  return p.powerSave ? { ...p, inlayHints: false, codeVision: false, inspections: false, inlineBlame: false, minimap: false } : p;
+  return p.powerSave ? { ...p, inlayHints: false, codeVision: false, inspections: false, inlineBlame: false, minimap: false, aiInline: false } : p;
 }
 
 interface SettingsState {

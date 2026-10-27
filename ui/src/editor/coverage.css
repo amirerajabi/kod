@@ -1,0 +1,20 @@
+/* Coverage bars in the editor gutter, right of the Git change bars. */
+.cov-covered,
+.cov-uncovered,
+.cov-partial {
+  margin-left: 8px;
+  width: 3px !important;
+  border-radius: 1px;
+}
+.cov-covered {
+  background: var(--success);
+  opacity: 0.55;
+}
+.cov-uncovered {
+  background: var(--danger);
+  opacity: 0.8;
+}
+.cov-partial {
+  background: var(--warning);
+  opacity: 0.85;
+}

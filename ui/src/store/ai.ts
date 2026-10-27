@@ -9,6 +9,7 @@ import { pathOfModel } from '../editor/models';
 import { load, save } from '../lib/storage';
 import { platform } from '../platform';
 import { useEditors } from './editors';
+import { useSettings } from './settings';
 import { toast, useUi } from './ui';
 
 export type AiMode = 'agent' | 'auto' | 'chat';
@@ -93,6 +94,19 @@ async function providerPayload(providerId: string) {
     effort: config.effort,
     keyEnv: preset.keyEnv,
   };
+}
+
+/** A small, fast model of the provider for inline completions ('' = use the chat model). */
+export function defaultInlineModel(providerId: string): string {
+  return { anthropic: 'claude-haiku-5-5', openai: 'gpt-5-mini', gemini: 'gemini-2.5-flash', mistral: 'codestral-latest', glm: 'glm-4-flash', qwen: 'qwen3-coder-plus' }[providerId] ?? '';
+}
+
+/** The provider for inline completions: the chosen one, with the completion model and no thinking. */
+export async function inlinePayload() {
+  const config = useAi.getState().config;
+  const p = await providerPayload(config.provider);
+  const own = useSettings.getState().settings.aiInlineModel;
+  return { ...p, model: own || defaultInlineModel(config.provider) || p.model, effort: undefined, fast: true, maxTokens: 256 };
 }
 
 export async function fetchModels(providerId: string): Promise<string[]> {

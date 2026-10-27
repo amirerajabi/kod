@@ -10,6 +10,14 @@
     <NoWarn>$(NoWarn);RS1035;RS1036</NoWarn>
   </PropertyGroup>
 
+  <!-- TraceEvent ships its ETW helpers (KernelTraceControl, msdia140) for every CPU: ~10 MB that live diagnostics,
+       which only reads EventPipe, never loads -->
+  <Target Name="DropTraceEventEtwHelpers" BeforeTargets="AssignTargetPaths">
+    <ItemGroup>
+      <None Remove="@(None)" Condition="'%(Filename)%(Extension)' == 'KernelTraceControl.dll' Or '%(Filename)%(Extension)' == 'msdia140.dll'" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <!-- compact the heap (large objects included) when it gets fragmented, instead of growing it -->
     <RuntimeHostConfigurationOption Include="System.GC.ConserveMemory" Value="5" />
@@ -22,6 +30,8 @@
     <PackageReference Include="Microsoft.CodeAnalysis.Workspaces.MSBuild" Version="5.0.0" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <PackageReference Include="Microsoft.Diagnostics.NETCore.Client" Version="0.2.750501" />
+    <PackageReference Include="Microsoft.Diagnostics.Tracing.TraceEvent" Version="4.0.0" />
     <PackageReference Include="MySqlConnector" Version="2.6.2" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <PackageReference Include="Porta.Pty" Version="2.2.3" />

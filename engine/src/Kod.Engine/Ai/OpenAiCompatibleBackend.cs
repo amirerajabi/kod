@@ -54,6 +54,8 @@ public sealed class OpenAiCompatibleBackend(IHttpClientFactory http) : IAiBacken
                 ["function"] = new JsonObject { ["name"] = t.Name, ["description"] = t.Description, ["parameters"] = JsonNode.Parse(t.Schema.GetRawText()) },
             }).ToArray());
         }
+        // OpenAI's newer models take max_completion_tokens; compatible servers know max_tokens
+        if (cfg.MaxTokens is { } max) body[IsOpenAi(baseUri) ? "max_completion_tokens" : "max_tokens"] = max;
         // usage in the last chunk (OpenAI and most compatible servers; others ignore it)
         if (IsOpenAi(baseUri)) body["stream_options"] = new JsonObject { ["include_usage"] = true };
 

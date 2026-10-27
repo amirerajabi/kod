@@ -39,10 +39,13 @@ public sealed class DatabaseService(WorkspaceService workspace, ILogger<Database
 
     // ------------------------------------------------------------------ connections
 
+    /// <summary>The connection string of a data source (EF Core scaffolding passes it to dotnet ef).</summary>
+    internal static string ConnectionStringOf(DbConnectionDto c) => string.IsNullOrWhiteSpace(c.ConnectionString) ? Build(c) : c.ConnectionString!;
+
     private static DbConnection Create(DbConnectionDto c)
     {
         if (!Kinds.Contains(c.Kind)) throw new ArgumentException($"Unknown database kind '{c.Kind}'");
-        var cs = string.IsNullOrWhiteSpace(c.ConnectionString) ? Build(c) : c.ConnectionString!;
+        var cs = ConnectionStringOf(c);
         return c.Kind switch
         {
             "sqlserver" => new Microsoft.Data.SqlClient.SqlConnection(cs),
