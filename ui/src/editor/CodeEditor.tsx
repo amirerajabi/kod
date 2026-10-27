@@ -111,6 +111,17 @@ export function CodeEditor() {
       ed.addAction({ id: `kod.${id}`, label, contextMenuGroupId: '0_ai', contextMenuOrder: i, run: () => void import('../app/commands').then((m) => m.runCommand(id)) });
     }
 
+    // right-click › Local History (Rider's): the file, or only the selected lines
+    ed.addAction({ id: 'kod.history.show', label: 'Local History: Show History', contextMenuGroupId: '9_history', contextMenuOrder: 0, run: () => void import('../app/commands').then((m) => m.runCommand('history.show')) });
+    ed.addAction({
+      id: 'kod.history.selection',
+      label: 'Local History: Show History for Selection',
+      contextMenuGroupId: '9_history',
+      contextMenuOrder: 1,
+      precondition: 'editorHasSelection',
+      run: () => void import('../app/commands').then((m) => m.runCommand('history.selection')),
+    });
+
     // Rider keys on top of Monaco's own (F12, Shift+F12, F2, Ctrl+Space, Ctrl+Shift+Space...)
     ed.addCommand(monaco.KeyMod.Alt | monaco.KeyCode.Enter, () => ed.trigger('kod', 'editor.action.quickFix', {}));
     // AI inline completions: Alt+\ asks for a suggestion now, Ctrl+Right takes its next word

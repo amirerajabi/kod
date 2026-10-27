@@ -21,8 +21,23 @@ export function GeneralSection() {
       </Card>
       <Card title="Files" description="Saving and the editor tabs.">
         <Row label="Auto save" htmlFor="set-autosave" hint="Save files without pressing Save" keywords="save automatically delay focus">
-          <Select id="set-autosave" value={s.autoSave} options={[['off', 'Off'], ['afterDelay', 'After a short delay'], ['onFocusChange', 'When the editor loses focus']]} onChange={(v) => up({ autoSave: v })} />
+          <Select
+            id="set-autosave"
+            value={s.autoSave}
+            options={[
+              ['rider', 'Like Rider (recommended)'],
+              ['afterDelay', 'A second after every change'],
+              ['onFocusChange', 'When the editor loses focus'],
+              ['off', 'Off: save with Ctrl+S'],
+            ]}
+            onChange={(v) => up({ autoSave: v })}
+          />
         </Row>
+        {s.autoSave === 'rider' && (
+          <Row label="Save after a quiet moment of" htmlFor="set-autosave-idle" hint="Also saved when Kod loses focus, when you switch or close a tab, before build, run, test and Git, and when Kod quits. Local History keeps every version." keywords="auto save idle seconds rider frame deactivation">
+            <Select<number> id="set-autosave-idle" value={s.autoSaveIdleSeconds} options={[[3, '3 seconds'], [5, '5 seconds'], [15, '15 seconds'], [30, '30 seconds'], [60, '1 minute']]} onChange={(v) => up({ autoSaveIdleSeconds: v })} />
+          </Row>
+        )}
         <ToggleRow id="set-preview" label="Single click opens a preview tab" hint="The tab is replaced by the next file you click; edit or double-click it to keep it" keywords="preview tab italic explorer" checked={s.previewTabs} onChange={(v) => up({ previewTabs: v })} />
         <ToggleRow id="set-ignored" label="Show build folders in the explorer" hint="bin, obj, .git, .vs, node_modules…" keywords="hidden ignored bin obj explorer files" checked={s.showIgnored} onChange={(v) => up({ showIgnored: v })} />
       </Card>

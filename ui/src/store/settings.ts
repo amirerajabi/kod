@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { load, save } from '../lib/storage';
+import { load, loadRaw, save } from '../lib/storage';
 
 export interface Settings {
   theme: 'dark' | 'light' | 'system';
@@ -28,7 +28,12 @@ export interface Settings {
   stickyScroll: boolean;
   renderWhitespace: 'none' | 'selection' | 'all';
   formatOnSave: boolean;
-  autoSave: 'off' | 'afterDelay' | 'onFocusChange';
+  /** 'rider': saved when Kod loses focus, on a tab switch or close, before build / run / commit, and after a quiet moment. */
+  autoSave: 'rider' | 'off' | 'afterDelay' | 'onFocusChange';
+  /** Rider mode: save after this many seconds without typing or clicking. */
+  autoSaveIdleSeconds: number;
+  /** Bumped when a default changes for everyone (2: Auto Save on). */
+  settingsVersion: number;
   saveBeforeBuild: boolean;
   previewTabs: boolean;
   showIgnored: boolean;
@@ -80,7 +85,9 @@ export const DEFAULT_SETTINGS: Settings = {
   stickyScroll: true,
   renderWhitespace: 'selection',
   formatOnSave: false,
-  autoSave: 'off',
+  autoSave: 'rider',
+  autoSaveIdleSeconds: 15,
+  settingsVersion: 2,
   saveBeforeBuild: true,
   previewTabs: true,
   showIgnored: false,
@@ -111,7 +118,16 @@ interface SettingsState {
   update(p: Partial<Settings>): void;
 }
 
-const initial = load('settings', DEFAULT_SETTINGS);
+const initial = migrate(load('settings', DEFAULT_SETTINGS));
+
+/** Settings saved by an older Kod: Auto Save was off by default, now it is on (Rider's behaviour). */
+function migrate(s: Settings): Settings {
+  const stored = loadRaw<Partial<Settings>>('settings', {});
+  if ((stored.settingsVersion ?? 1) >= 2) return s;
+  const next = { ...s, settingsVersion: 2, autoSave: stored.autoSave && stored.autoSave !== 'off' ? stored.autoSave : ('rider' as const) };
+  save('settings', next);
+  return next;
+}
 
 export const useSettings = create<SettingsState>((set, get) => ({
   settings: effective(initial),

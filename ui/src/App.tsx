@@ -8,6 +8,7 @@ import { CommandPalette } from './components/CommandPalette';
 import { MenuHost } from './components/common/Menu';
 import { ConfirmDialog, PromptDialog, Toasts } from './components/common/Overlays';
 import { Dock } from './components/Dock';
+import { ToolStripe } from './components/ToolStripe';
 import { EditorArea } from './components/EditorArea';
 import { NewProjectDialog } from './components/NewProjectDialog';
 import { RefactorDialogs } from './components/RefactorDialogs';
@@ -17,6 +18,7 @@ import { SettingsDialog } from './components/settings/SettingsDialog';
 import { ShortcutSheet } from './components/ShortcutSheet';
 import { VisualizerDialog } from './components/VisualizerDialog';
 import { MemoryDialog } from './components/MemoryPanel';
+import { RecentChanges } from './components/RecentChanges';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { Welcome } from './components/Welcome';
@@ -38,6 +40,7 @@ export default function App() {
       <div className="main">
         {root ? (
           <>
+            <ToolStripe />
             <Dock />
             <div className="center">
               <EditorArea />
@@ -59,6 +62,7 @@ export default function App() {
       <ShortcutSheet />
       <VisualizerDialog />
       <MemoryDialog />
+      <RecentChanges />
       <NewProjectDialog />
       <RemotesDialog />
       <RefactorDialogs />

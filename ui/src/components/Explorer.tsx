@@ -1,4 +1,4 @@
-import { ChevronDown, ChevronRight, Copy, ExternalLink, Database as DatabaseIcon, Eye, EyeOff, FilePlus, Globe, FolderPlus, Hammer, ListCollapse, Package, PackageMinus, PackageOpen, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronRight, Copy, ExternalLink, Database as DatabaseIcon, Eye, EyeOff, FilePlus, Globe, FolderPlus, Hammer, History, ListCollapse, Package, PackageMinus, PackageOpen, Pencil, Play, RefreshCw, SquareTerminal, Star, TestTube2, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, type KeyboardEvent } from 'react';
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
@@ -7,6 +7,7 @@ import type { FsEntry } from '../api/types';
 import { onEngineEvent } from '../api/ws';
 import { copyText, createItem, deletePath, renamePath } from '../app/actions';
 import { generateHttpFile } from '../store/http';
+import { putProjectLabel } from '../editor/ProjectHistoryView';
 import { extname, isUnder, norm, relative, samePath } from '../lib/paths';
 import { platform } from '../platform';
 import { useEditors } from '../store/editors';
@@ -170,6 +171,15 @@ export function Explorer() {
       );
     }
     items.push(
+      'separator',
+      {
+        label: 'Local History',
+        icon: <History size={14} />,
+        submenu: [
+          { label: 'Show History', run: () => useEditors.getState().openHistory(entry.path, entry.isDir ? { folder: true } : {}) },
+          { label: 'Put Label…', run: () => void putProjectLabel() },
+        ],
+      },
       'separator',
       { label: 'Rename…', icon: <Pencil size={14} />, shortcut: 'F2', run: () => void renamePath(entry.path, entry.isDir) },
       { label: 'Delete', icon: <Trash2 size={14} />, shortcut: 'Delete', danger: true, run: () => void deletePath(entry.path, entry.isDir) },

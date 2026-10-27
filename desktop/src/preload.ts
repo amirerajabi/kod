@@ -34,6 +34,15 @@ contextBridge.exposeInMainWorld('kod', {
   quitAndInstall: () => ipcRenderer.invoke('update:install'),
   cancelUpdateDownload: () => ipcRenderer.invoke('update:cancel'),
   showNotification: (n: { title: string; body: string }) => void ipcRenderer.invoke('notify', { title: String(n?.title ?? ''), body: String(n?.body ?? '') }),
+  /** Before the window closes: the UI saves its files (Auto Save), then the shell closes it. */
+  onBeforeClose: (cb: () => Promise<void>) => {
+    ipcRenderer.on('app:before-close', () => {
+      Promise.resolve()
+        .then(cb)
+        .catch(() => undefined)
+        .finally(() => ipcRenderer.send('app:close-ok'));
+    });
+  },
   // ---- memory
   getProcessMemory: () => ipcRenderer.invoke('memory:metrics'),
   /** Drops the window's decoded images and other caches it can rebuild, then collects garbage. */

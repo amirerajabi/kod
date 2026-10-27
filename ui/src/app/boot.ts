@@ -29,6 +29,7 @@ import { loadBreakpoints, onDebugEvent } from '../store/debug';
 import { registerDebugHover } from '../editor/debugEditor';
 import { onMemoryPressure, startMemoryMonitor, syncMemorySettings } from '../store/memory';
 import { onDiagEvent } from '../store/diagnostics';
+import { installAutoSave } from './autoSave';
 import { toast, useUi } from '../store/ui';
 import { useWorkspace } from '../store/workspace';
 
@@ -82,6 +83,7 @@ export async function boot(): Promise<void> {
   registerAiInline();
   void refreshKeys();
   startMemoryMonitor();
+  installAutoSave();
   window.addEventListener('focus', () => refreshGit(100));
 
   let lastRoot: string | undefined;

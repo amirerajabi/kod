@@ -29,6 +29,7 @@ public sealed record WorkspaceStateDto(
 public sealed class WorkspaceService : IDisposable
 {
     private readonly EventHub hub;
+    private readonly LocalHistoryService history;
     private readonly ILogger<WorkspaceService> log;
     private readonly object sync = new();
     private readonly SemaphoreSlim loadGate = new(1, 1);
@@ -63,9 +64,10 @@ public sealed class WorkspaceService : IDisposable
         global using global::System.Threading.Tasks;
         """;
 
-    public WorkspaceService(EventHub hub, ILogger<WorkspaceService> log)
+    public WorkspaceService(EventHub hub, LocalHistoryService history, ILogger<WorkspaceService> log)
     {
         this.hub = hub;
+        this.history = history;
         this.log = log;
         current = adhoc.CurrentSolution;
         fsTimer = new Timer(_ => FlushFsEvents(), null, Timeout.Infinite, Timeout.Infinite);
@@ -670,8 +672,29 @@ public sealed class WorkspaceService : IDisposable
             if (ext == ".cs") ApplyFsEvent(e.Kind, e.Path, e.OldPath);
         }
         if (files.Count == 0) return;
+        RecordExternal(files);
         hub.Publish("fs.changed", new { dirs, files });
         if (reload && state != LoadState.Loading) reloadTimer.Change(1500, Timeout.Infinite);
+    }
+
+    /// <summary>
+    /// Local History: a file you edited in Kod that another program changed (git checkout, a formatter, another
+    /// editor) gets an "External change" revision; Kod's own saves are already the newest revision, so they add none.
+    /// </summary>
+    private void RecordExternal(IEnumerable<string> files)
+    {
+        foreach (var f in files)
+        {
+            try
+            {
+                if (!history.Has(f) || !File.Exists(f) || new FileInfo(f).Length > 4 * 1024 * 1024) continue;
+                history.Record(f, File.ReadAllText(f), "External change");
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                // locked or gone: the next change records it
+            }
+        }
     }
 
     private void ApplyFsEvent(WatcherChangeTypes kind, string path, string? oldPath)

@@ -1,6 +1,7 @@
 // Git (the engine runs the git CLI): working tree status, branches, history, and the actions of Rider's Commit and
 // Git windows. Network operations (fetch, pull, push) run as processes so their output shows in the Build window.
 import { create } from 'zustand';
+import { autoSaveAll } from '../app/autoSave';
 import { api, errorText } from '../api/client';
 import { norm } from '../lib/paths';
 import { runAndWait } from './procs';
@@ -97,6 +98,8 @@ export function refreshGit(delay = 300): void {
 async function op(label: string, fn: () => Promise<unknown>, ok?: string): Promise<boolean> {
   useGit.setState({ busy: label });
   try {
+    // Auto Save: Git works on what is on disk
+    await autoSaveAll();
     await fn();
     if (ok) toast('success', ok, undefined, 2500);
     return true;
@@ -135,6 +138,8 @@ export async function commit(message: string, paths: string[] | null, amend: boo
   const ok = await op(amend ? 'Amend commit' : 'Commit', async () => {
     const r = await api.post<{ hash: string }>('/git/commit', { message, paths, amend, partial: partial?.length ? partial : undefined });
     toast('success', `Committed ${r.hash}`, message.split('\n')[0], 3000);
+    // Rider puts a label in the project's Local History at every commit
+    void api.post('/history/projectLabel', { label: `Commit: ${message.split('\n')[0].slice(0, 80)}` }).catch(() => undefined);
   });
   if (ok && push) await gitPush();
   return ok;
