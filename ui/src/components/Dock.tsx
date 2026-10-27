@@ -1,7 +1,5 @@
-import { Database, FolderTree, GitCommitHorizontal, ListTree, Search } from 'lucide-react';
 import { useRef, useState } from 'react';
-import { shortcutOf } from '../app/commands';
-import { DOCK_MAX, DOCK_MIN, useUi, type DockPanel } from '../store/ui';
+import { DOCK_MAX, DOCK_MIN, useUi } from '../store/ui';
 import { Splitter } from './common/Splitter';
 import { CommitPanel } from './CommitPanel';
 import { DatabasePanel } from './DatabasePanel';
@@ -9,15 +7,7 @@ import { Explorer } from './Explorer';
 import { SearchPanel } from './SearchPanel';
 import { StructurePanel } from './StructurePanel';
 
-const TABS: { id: DockPanel; label: string; Icon: typeof FolderTree; command: string }[] = [
-  { id: 'explorer', label: 'Explorer', Icon: FolderTree, command: 'view.explorer' },
-  { id: 'commit', label: 'Commit', Icon: GitCommitHorizontal, command: 'view.commit' },
-  { id: 'structure', label: 'Structure', Icon: ListTree, command: 'view.structure' },
-  { id: 'search', label: 'Search', Icon: Search, command: 'nav.findInFiles' },
-  { id: 'database', label: 'Database', Icon: Database, command: 'view.database' },
-];
-
-/** Left dock: Explorer | Structure | Search | NuGet, tabbed and resizable (the Rowlit dock). */
+/** The side panel: the left tool window open on the stripe (Explorer, Commit, Structure, Find in Files, Database), resizable. */
 export function Dock() {
   const visible = useUi((s) => s.dockVisible);
   const width = useUi((s) => s.dockWidth);
@@ -29,18 +19,7 @@ export function Dock() {
   return (
     <>
       <aside ref={ref} className="dock" style={{ width: Math.max(DOCK_MIN, Math.min(DOCK_MAX, width)) }} aria-label="Side panel">
-        <div className="dock-tabs" role="tablist">
-          {TABS.map((t) => {
-            const k = shortcutOf(t.command);
-            return (
-              <button key={t.id} role="tab" aria-selected={dock === t.id} className={`dock-tab${dock === t.id ? ' active' : ''}`} title={k ? `${t.label} (${k})` : t.label} onClick={() => useUi.getState().showDock(t.id)}>
-                <t.Icon size={14} />
-                <span>{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
-        <div className="dock-body" role="tabpanel">
+        <div className="dock-body">
           {dock === 'explorer' && <Explorer />}
           {dock === 'commit' && <CommitPanel />}
           {dock === 'structure' && <StructurePanel />}

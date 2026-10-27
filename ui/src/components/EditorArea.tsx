@@ -5,6 +5,7 @@ import { keyLabel } from '../app/commands';
 import { CodeEditor } from '../editor/CodeEditor';
 import { DiffView } from '../editor/DiffView';
 import { HistoryView } from '../editor/HistoryView';
+import { ProjectHistoryView } from '../editor/ProjectHistoryView';
 import { MergeView } from '../editor/MergeView';
 import { changeKind, statusOf, useGit } from '../store/git';
 import { basename, dirname, norm, samePath } from '../lib/paths';
@@ -16,10 +17,16 @@ import { FileIcon } from './common/icons';
 import { showContextMenu, type MenuItem } from './common/Menu';
 import { revealInExplorer } from './Explorer';
 
+/** 'selection:12-30' → lines 12 to 30. */
+const selectionOf = (mode: string) => {
+  const m = /^selection:(\d+)-(\d+)$/.exec(mode);
+  return m ? { start: Number(m[1]), end: Number(m[2]) } : undefined;
+};
+
 export function EditorArea() {
   const tabs = useEditors((s) => s.tabs);
   const diff = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'diff')?.diff);
-  const history = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'history')?.diff?.path);
+  const history = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'history')?.diff);
   const merge = useEditors((s) => s.tabs.find((t) => t.path === s.active && t.kind === 'merge')?.diff?.path);
   return (
     <section className="workspace" aria-label="Editor">
@@ -27,7 +34,8 @@ export function EditorArea() {
       <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', position: 'relative' }}>
         <CodeEditor />
         {diff && <DiffView key={`${diff.left}:${diff.right}:${diff.path}`} spec={diff} />}
-        {history && <HistoryView key={history} path={history} />}
+        {history?.left === 'folder' && <ProjectHistoryView key={history.path} path={history.path} />}
+        {history && history.left !== 'folder' && <HistoryView key={`${history.left}:${history.path}`} path={history.path} selection={selectionOf(history.left)} />}
         {merge && <MergeView key={merge} path={merge} />}
       </div>
       {tabs.length === 0 && <EditorEmpty />}

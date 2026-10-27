@@ -129,6 +129,22 @@ function createWindow(): void {
     }
   };
   win.on('close', save);
+  // Auto Save: the UI saves its files first (it answers app:close-ok), then the window really closes
+  let closing = false;
+  win.on('close', (e) => {
+    if (closing || !win) return;
+    e.preventDefault();
+    const w = win;
+    const go = () => {
+      if (closing) return;
+      closing = true;
+      ipcMain.removeListener('app:close-ok', go);
+      w.close();
+    };
+    ipcMain.once('app:close-ok', go);
+    setTimeout(go, 5000);
+    w.webContents.send('app:before-close');
+  });
   win.on('closed', () => (win = null));
 
   // the renderer reports unsaved files through beforeunload

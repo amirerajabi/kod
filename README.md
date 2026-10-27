@@ -9,7 +9,7 @@ WebSocket event stream; the engine owns everything that touches code, files and 
 
 ```
 desktop/   Electron shell: window (Windows caption overlay, macOS inset), kod://app protocol, engine lifecycle
-ui/        React + Monaco UI: top bar, tabbed dock, editor tabs, tool windows, status bar, palette, dialogs
+ui/        React + Monaco UI: top bar, tool window stripe, side panel, editor tabs, tool windows, status bar, palette, dialogs
 engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   Workspace/  MSBuildWorkspace solution / project loading, live editor text overlays, file watching, files, search
   Intel/      Roslyn: completion, hover, signature help, diagnostics, navigation, usages, rename, format,
@@ -84,8 +84,16 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   later), in the Git window's Stashes and Shelf tabs.
 
 **Local History, bookmarks, TODO**
-- **Local History** of every file, Git or not: every save, delete and refactoring keeps a revision (30 days); diff
-  any revision against the current text, revert to it, put labels.
+- **Auto Save** like Rider's, on by default: files are saved when Kod loses focus, when you switch or close a tab,
+  before build / run / test / debug and Git, after a quiet moment (15 s, adjustable), and before Kod quits. There
+  is no "save changes?" question; Local History keeps every version. Settings › General switches to the other modes.
+- **Local History** of every file, Git or not: every save, delete, refactoring, revert and external change (another
+  program, a git checkout) keeps a revision (30 days); diff any revision against the current text, revert to it,
+  put labels.
+- **Project and folder history** (Explorer › Local History, File › Local History): every change across files, newest
+  first, with project labels (yours, every commit, every revert); pick a change to see what it did to each file,
+  and revert the whole change or one file. **Show History for Selection** (right-click in the editor) lists only the
+  versions in which the selected lines changed; **Recent Changes** (Alt+Shift+C) shows the latest at a glance.
 - **Bookmarks**: F11 toggles one, Ctrl+Shift+1…9 a numbered one, Ctrl+1…9 jumps back, Ctrl+F11 a letter; they
   follow edits and are listed in the Bookmarks window (Shift+F11).
 - **TODO** window (Alt+Shift+6): TODO / FIXME / HACK / BUG / NOTE comments of the project or the current file.
@@ -155,6 +163,11 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
   stdin input, ANSI colours and a "listening on" link for web apps, **Run tests**, **Stop**.
 - Clickable `file(line,col)` locations in output; build errors flow into the **Problems** window, together with
   live diagnostics and an on-demand **Analyze solution**.
+- **Tool window stripe** on the left edge (Rider's new UI): the side panel windows at the top, the bottom panel ones
+  at the bottom, each button toggling its window, with live state (a spinner while building or testing, the error
+  count, the coverage). Only the everyday windows are on it at first (Explorer, Commit, Structure, Run, Debug, Build,
+  Tests, Terminal, Problems, Git); ⋯ More tool windows (or View › Tool Windows) opens any other and chooses which
+  ones stay on the stripe; right-click a button to remove it.
 - **Explorer** with new class / interface / record / enum / file / folder, rename, delete (Recycle Bin on
   Windows), copy path, reveal, open in terminal, run/build/test project, set run configuration; **Show All Files**
   (the eye button) also lists bin, obj, .git, .vs and node_modules, dimmed.

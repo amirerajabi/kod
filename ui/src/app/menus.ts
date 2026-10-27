@@ -1,4 +1,5 @@
 import type { MenuItem } from '../components/common/Menu';
+import { toolWindowsMenu } from '../components/ToolStripe';
 import { useSettings } from '../store/settings';
 import { useWorkspace } from '../store/workspace';
 import { openWorkspace } from './actions';
@@ -36,8 +37,10 @@ export function appMenu(): MenuItem[] {
         c('file.close'),
         c('file.closeAll'),
         'separator',
-        c('history.show'),
-        c('history.label'),
+        {
+          label: 'Local History',
+          submenu: [c('history.show', 'Show History'), c('history.selection', 'Show History for Selection'), c('history.project', 'Show Project History'), c('history.recent'), 'separator', c('history.label', 'Put Label on File…'), c('history.projectLabel', 'Put Label on Project…')],
+        },
         'separator',
         c('file.reloadProjects'),
         c('file.unloadOtherProjects'),
@@ -55,6 +58,8 @@ export function appMenu(): MenuItem[] {
     {
       label: 'View',
       submenu: [
+        { label: 'Tool Windows', submenu: toolWindowsMenu() },
+        'separator',
         c('view.explorer'),
         c('view.structure'),
         c('view.search'),

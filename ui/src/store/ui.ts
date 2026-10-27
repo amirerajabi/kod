@@ -45,7 +45,12 @@ interface Layout {
   /** The AI assistant window on the right. */
   aiVisible: boolean;
   aiWidth: number;
+  /** The tool windows on the left stripe (the rest open from More tool windows). */
+  stripe: string[];
 }
+
+/** On the stripe at first: the windows used every day (Rider shows a similar short set). */
+export const DEFAULT_STRIPE = ['explorer', 'commit', 'structure', 'run', 'debug', 'build', 'tests', 'terminal', 'problems', 'git'];
 
 interface UiState extends Layout {
   wsStatus: 'connecting' | 'open' | 'closed';
@@ -56,6 +61,8 @@ interface UiState extends Layout {
   newProjectOpen: boolean;
   remotesOpen: boolean;
   shortcutsOpen: boolean;
+  /** Recent Changes (Alt+Shift+C): the latest Local History changes of the project. */
+  recentChangesOpen: boolean;
   prompt: PromptRequest | null;
   confirm: ConfirmRequest | null;
   toasts: Toast[];
@@ -71,7 +78,7 @@ interface UiState extends Layout {
   dismiss(id: number): void;
 }
 
-const LAYOUT_DEFAULT: Layout = { dockVisible: true, dockWidth: 300, dock: 'explorer', bottomVisible: false, bottomHeight: 260, bottom: 'run', aiVisible: false, aiWidth: 400 };
+const LAYOUT_DEFAULT: Layout = { dockVisible: true, dockWidth: 300, dock: 'explorer', bottomVisible: false, bottomHeight: 260, bottom: 'run', aiVisible: false, aiWidth: 400, stripe: DEFAULT_STRIPE };
 let toastId = 0;
 
 export const DOCK_MIN = 200;
@@ -82,7 +89,7 @@ export const AI_MAX = 900;
 export const useUi = create<UiState>((set, get) => {
   const persist = () => {
     const s = get();
-    save('layout', { dockVisible: s.dockVisible, dockWidth: s.dockWidth, dock: s.dock, bottomVisible: s.bottomVisible, bottomHeight: s.bottomHeight, bottom: s.bottom, aiVisible: s.aiVisible, aiWidth: s.aiWidth });
+    save('layout', { dockVisible: s.dockVisible, dockWidth: s.dockWidth, dock: s.dock, bottomVisible: s.bottomVisible, bottomHeight: s.bottomHeight, bottom: s.bottom, aiVisible: s.aiVisible, aiWidth: s.aiWidth, stripe: s.stripe });
   };
   return {
     ...load<Layout>('layout', LAYOUT_DEFAULT),
@@ -94,6 +101,7 @@ export const useUi = create<UiState>((set, get) => {
     newProjectOpen: false,
     remotesOpen: false,
     shortcutsOpen: false,
+    recentChangesOpen: false,
     prompt: null,
     confirm: null,
     toasts: [],

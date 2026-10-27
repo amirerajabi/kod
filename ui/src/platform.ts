@@ -28,6 +28,8 @@ export interface Platform {
   quitAndInstall?(): Promise<boolean>;
   cancelUpdateDownload?(): Promise<boolean>;
   showNotification?(n: { title: string; body: string }): void;
+  /** Desktop: called before the window closes; the shell waits (up to 5 s) for the returned promise. */
+  onBeforeClose?(cb: () => Promise<void>): void;
   // ---- memory (desktop only): every Electron process, and dropping what the window can rebuild
   getProcessMemory?(): Promise<{ pid: number; type: string; name: string; workingSetKb: number; privateKb: number; cpu: number }[]>;
   freeRendererMemory?(): void;

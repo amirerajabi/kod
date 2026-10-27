@@ -37,6 +37,7 @@ import { debugInDocker, runInDocker, stopDockerRun } from '../store/docker';
 import { showConflicts } from '../components/GitDialogs';
 import { freeMemory, useMemory } from '../store/memory';
 import { generateHttpFile } from '../store/http';
+import { putProjectLabel } from '../editor/ProjectHistoryView';
 
 /** Keeps only the run configuration's project loaded (the rest leave the solution until loaded again). */
 function unloadOtherProjects(): Promise<void> {
@@ -155,6 +156,26 @@ export const COMMANDS: Command[] = [
   ]),
   { id: 'history.show', title: 'Local History: Show History', category: 'File', run: () => { const f = currentFilePath(); if (f) useEditors.getState().openHistory(f); else toast('info', 'Open a file first'); } },
   { id: 'history.label', title: 'Local History: Put Label…', category: 'File', run: () => void putHistoryLabel() },
+  {
+    id: 'history.project',
+    title: 'Local History: Show Project History',
+    category: 'File',
+    run: needsRoot(() => useEditors.getState().openHistory(useWorkspace.getState().ws.root!, { folder: true })),
+  },
+  {
+    id: 'history.selection',
+    title: 'Local History: Show History for Selection',
+    category: 'File',
+    run: () => {
+      const ed = getEditor();
+      const f = currentFilePath();
+      const sel = ed?.getSelection();
+      if (!f || !sel) toast('info', 'Select some lines in a file first');
+      else useEditors.getState().openHistory(f, { selection: { start: sel.startLineNumber, end: Math.max(sel.startLineNumber, sel.endColumn === 1 && sel.endLineNumber > sel.startLineNumber ? sel.endLineNumber - 1 : sel.endLineNumber) } });
+    },
+  },
+  { id: 'history.recent', title: 'Recent Changes', category: 'File', keys: ['Alt+Shift+C'], run: needsRoot(() => useUi.getState().set({ recentChangesOpen: true })), global: true },
+  { id: 'history.projectLabel', title: 'Local History: Put Label on Project…', category: 'File', run: needsRoot(() => void putProjectLabel()) },
   { id: 'view.todo', title: 'TODO', category: 'View', keys: ['Alt+Shift+6'], run: () => useUi.getState().showBottom('todo'), global: true },
 
   // Docker

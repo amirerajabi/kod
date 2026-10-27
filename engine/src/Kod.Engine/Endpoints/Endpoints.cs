@@ -98,6 +98,14 @@ public static class Endpoints
         api.MapGet("/history/list", (string path, LocalHistoryService h) => h.List(path));
         api.MapGet("/history/text", (string path, string id, LocalHistoryService h) => new { text = h.Text(path, id) });
         api.MapGet("/history/under", (string path, LocalHistoryService h) => h.Under(path));
+        api.MapGet("/history/changes", (string path, LocalHistoryService h) => h.Changes(path));
+        api.MapPost("/history/selection", (HistorySelectionBody b, LocalHistoryService h) => h.ForSelection(b.Path, b.Text, b.StartLine, b.EndLine));
+        api.MapPost("/history/projectLabel", (ProjectLabelBody b, LocalHistoryService h, WorkspaceService ws) =>
+        {
+            var root = b.Root ?? ws.Root ?? throw new InvalidOperationException("Open a folder first");
+            h.PutProjectLabel(root, b.Label);
+            return Results.NoContent();
+        });
         api.MapPost("/history/label", (HistoryLabelBody b, LocalHistoryService h) =>
         {
             h.Record(b.Path, b.Text ?? File.ReadAllText(b.Path), b.Label.Trim().Length > 0 ? b.Label.Trim() : "Label");

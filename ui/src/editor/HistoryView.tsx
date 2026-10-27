@@ -20,13 +20,19 @@ function when(t: number): string {
   return sameDay ? d.toLocaleTimeString() : d.toLocaleString();
 }
 
-/** Rider's Local History of a file: every saved version, each diffed against the current text, with Revert. */
-export function HistoryView({ path }: { path: string }) {
+/**
+ * Rider's Local History of a file: every saved version, each diffed against the current text, with Revert. With a
+ * selection (Show History for Selection), only the versions in which those lines read differently.
+ */
+export function HistoryView({ path, selection }: { path: string; selection?: { start: number; end: number } }) {
   const [revisions, setRevisions] = useState<Revision[] | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
   const load = () =>
-    api.get<Revision[]>('/history/list', { path }).then(
+    (selection
+      ? api.post<Revision[]>('/history/selection', { path, text: getEntry(path)?.model.getValue() ?? '', startLine: selection.start, endLine: selection.end })
+      : api.get<Revision[]>('/history/list', { path })
+    ).then(
       (list) => {
         setRevisions(list);
         setSelected((s) => (s && list.some((r) => r.id === s) ? s : (list[0]?.id ?? null)));
@@ -72,7 +78,7 @@ export function HistoryView({ path }: { path: string }) {
       <div className="history-list">
         <div className="console-toolbar">
           <History size={14} />
-          <b>Local History</b>
+          <b>{selection ? `Lines ${selection.start}–${selection.end}` : 'Local History'}</b>
           <div className="flex-1" />
           <button className="icon-btn sm" title="Put Label" onClick={() => void putLabel()}>
             <Tag size={14} />
@@ -87,7 +93,7 @@ export function HistoryView({ path }: { path: string }) {
               <LoaderCircle size={16} className="spin" />
             </div>
           )}
-          {revisions?.length === 0 && <div className="panel-empty">No history yet. Every save of this file keeps a revision here.</div>}
+          {revisions?.length === 0 && <div className="panel-empty">{selection ? 'These lines have not changed in the saved history of this file.' : 'No history yet. Every save of this file keeps a revision here.'}</div>}
           {revisions?.map((r) => (
             <div key={r.id} className={`result-item${r.id === selected ? ' selected' : ''}`} onClick={() => setSelected(r.id)} title={`${r.size} characters`}>
               <span className="msg">{when(r.time)}</span>

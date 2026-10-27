@@ -44,7 +44,8 @@ interface EditorsState {
   openMetadata(view: MetadataViewDto): void;
   openDiff(spec: DiffSpec): void;
   /** Local History of a file: its revisions, each diffed against the current text. */
-  openHistory(path: string): void;
+  /** Local History of a file, of a folder (`folder`: its changes across files), or of the selected lines of a file. */
+  openHistory(path: string, opts?: { folder?: boolean; selection?: { start: number; end: number } }): void;
   /** The three-way merge tool for a conflicted file. */
   openMerge(path: string): void;
   activate(path: string): void;
@@ -52,8 +53,9 @@ interface EditorsState {
   close(path: string): Promise<boolean>;
   closeMany(paths: string[]): Promise<void>;
   move(from: number, to: number): void;
-  save(path?: string): Promise<boolean>;
-  saveAll(): Promise<boolean>;
+  /** `auto`: an Auto Save (no format on save, which would move the code under the caret). */
+  save(path?: string, opts?: { auto?: boolean }): Promise<boolean>;
+  saveAll(opts?: { auto?: boolean }): Promise<boolean>;
   renamed(from: string, to: string): void;
   deleted(path: string): void;
 }
@@ -129,10 +131,12 @@ export const useEditors = create<EditorsState>((set, get) => ({
     set({ active: path });
   },
 
-  openHistory: (file) => {
-    const path = `kod-history:${file}`;
-    if (!get().tabs.some((t) => t.path === path))
-      set((s) => ({ tabs: [...s.tabs, { path, title: `${basename(file)} (Local History)`, kind: 'history', preview: false, dirty: false, readOnly: true, diff: { path: file, left: '', right: 'working' } }] }));
+  openHistory: (file, opts = {}) => {
+    const sel = opts.selection;
+    const mode = opts.folder ? 'folder' : sel ? `selection:${sel.start}-${sel.end}` : '';
+    const path = `kod-history:${mode ? `${mode}:` : ''}${file}`;
+    const title = sel ? `${basename(file)} lines ${sel.start}–${sel.end} (History)` : `${basename(file) || file} (Local History)`;
+    if (!get().tabs.some((t) => t.path === path)) set((s) => ({ tabs: [...s.tabs, { path, title, kind: 'history', preview: false, dirty: false, readOnly: true, diff: { path: file, left: mode, right: 'working' } }] }));
     set({ active: path });
   },
 
@@ -151,7 +155,10 @@ export const useEditors = create<EditorsState>((set, get) => ({
     const tab = get().tabs.find((t) => samePath(t.path, path));
     if (!tab) return true;
     const entry = getEntry(path);
-    if (entry && isDirty(entry) && tab.kind === 'file') {
+    // Auto Save (Rider's): closing saves, no question
+    if (entry && isDirty(entry) && tab.kind === 'file' && useSettings.getState().settings.autoSave === 'rider' && !entry.readOnly) {
+      if (!(await get().save(path, { auto: true }))) return false;
+    } else if (entry && isDirty(entry) && tab.kind === 'file') {
       set({ active: tab.path });
       const answer = await askConfirm({ title: 'Save changes?', message: `${tab.title} has unsaved changes.`, okLabel: 'Save', altLabel: "Don't save" });
       if (answer === 'cancel') return false;
@@ -180,14 +187,14 @@ export const useEditors = create<EditorsState>((set, get) => ({
       return { tabs };
     }),
 
-  save: async (path) => {
+  save: async (path, opts) => {
     const p = path ?? get().active;
     if (!p) return false;
     const entry = getEntry(p);
     const tab = get().tabs.find((t) => samePath(t.path, p));
     if (!entry || !tab || tab.kind !== 'file' || entry.readOnly) return true;
     try {
-      if (useSettings.getState().settings.formatOnSave && entry.model.getLanguageId() === 'csharp') await saveHooks.formatBeforeSave?.(entry.path);
+      if (!opts?.auto && useSettings.getState().settings.formatOnSave && entry.model.getLanguageId() === 'csharp') await saveHooks.formatBeforeSave?.(entry.path);
       await api.post('/fs/write', { path: entry.path, text: entry.model.getValue() });
       markSaved(entry);
       return true;
@@ -197,11 +204,11 @@ export const useEditors = create<EditorsState>((set, get) => ({
     }
   },
 
-  saveAll: async () => {
+  saveAll: async (opts) => {
     let ok = true;
     for (const t of get().tabs) {
       const e = getEntry(t.path);
-      if (e && isDirty(e)) ok = (await get().save(t.path)) && ok;
+      if (e && isDirty(e)) ok = (await get().save(t.path, opts)) && ok;
     }
     return ok;
   },

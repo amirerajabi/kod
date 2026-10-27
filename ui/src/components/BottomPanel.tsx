@@ -1,4 +1,4 @@
-import { Bookmark as BookmarkIcon, Container as ContainerIcon, Database as DatabaseIcon, DatabaseZap, Bug, FlaskConical, GitBranch, Globe, ListTodo, Network, Package, AlertTriangle, ListChecks, ChevronDown, ChevronRight, CircleX, Eraser, Hammer, Info, LoaderCircle, Play, Plus, RotateCw, ScanSearch, Search, ShieldCheck, Square, SquareTerminal, Trash2, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronRight, CircleX, Eraser, Info, LoaderCircle, Minus, Plus, RotateCw, ScanSearch, Search, Square, Trash2 } from 'lucide-react';
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { keyLabel } from '../app/commands';
 import { parseAnsi } from '../lib/ansi';
@@ -7,7 +7,7 @@ import { basename, dirname, norm, relative } from '../lib/paths';
 import { useEditors } from '../store/editors';
 import { allProblems, countProblems, useProblems } from '../store/problems';
 import { dotnetBuild, dotnetRun, dotnetTest, groupOf, startTerminal, useProcs, type ProcGroup, type ProcView } from '../store/procs';
-import { useUi, type BottomTab } from '../store/ui';
+import { useUi } from '../store/ui';
 import { useUsages } from '../store/usages';
 import { useWorkspace } from '../store/workspace';
 import { runCommand } from '../app/commands';
@@ -22,63 +22,19 @@ import { InspectionsPanel } from './InspectionsPanel';
 import { NugetWindow } from './NugetWindow';
 import { TerminalPane } from './TerminalPane';
 import { TestsPanel } from './TestsPanel';
-import { useTests } from '../store/tests';
-import { useInspections } from '../store/inspections';
-import { useDb } from '../store/database';
-import { useDebug } from '../store/debug';
 import { Splitter } from './common/Splitter';
+import { toolWindow, windowOfBottom } from './ToolStripe';
 import { HttpPanel } from './HttpPanel';
 import { EfPanel } from './EfPanel';
 import { CoveragePanel } from './CoveragePanel';
-import { formatPercent, useCoverage } from '../store/coverage';
-import { useEf } from '../store/ef';
-import { useHttp } from '../store/http';
 
 export function BottomPanel() {
   const visible = useUi((s) => s.bottomVisible);
   const height = useUi((s) => s.bottomHeight);
   const tab = useUi((s) => s.bottom);
-  const live = useProblems((s) => s.live);
-  const build = useProblems((s) => s.build);
-  const solution = useProblems((s) => s.solution);
-  const counts = useMemo(() => countProblems(allProblems({ live, build, solution })), [live, build, solution]);
-  const procs = useProcs((s) => s.procs);
-  const debugStatus = useDebug((s) => s.status);
-  const testsRunning = useTests((s) => s.running.size > 0);
-  const inspecting = useInspections((s) => s.running);
-  const dbRunning = useDb((s) => Object.values(s.runs).some((r) => r.running));
-  const httpRunning = useHttp((s) => s.history.some((h) => h.running));
-  const efBusy = useEf((s) => s.loading || !!s.busy);
-  const coverage = useCoverage((s) => s.data);
   const [start, setStart] = useState(height);
   if (!visible) return null;
-  const runningIn = (g: ProcGroup) => Object.values(procs).some((p) => groupOf(p.info.kind) === g && p.info.exitCode == null);
-
-  const TABS: { id: BottomTab; label: string; icon: ReactNode; badge?: ReactNode }[] = [
-    { id: 'run', label: 'Run', icon: runningIn('run') ? <LoaderCircle size={14} className="spin" /> : <Play size={14} /> },
-    { id: 'debug', label: 'Debug', icon: debugStatus !== 'idle' ? <Bug size={14} style={{ color: debugStatus === 'stopped' ? 'var(--warning)' : 'var(--success)' }} /> : <Bug size={14} /> },
-    { id: 'build', label: 'Build', icon: runningIn('build') ? <LoaderCircle size={14} className="spin" /> : <Hammer size={14} /> },
-    { id: 'tests', label: 'Tests', icon: testsRunning ? <LoaderCircle size={14} className="spin" /> : <FlaskConical size={14} /> },
-    { id: 'coverage', label: 'Coverage', icon: <ShieldCheck size={14} />, badge: coverage ? <span className="muted" style={{ fontSize: 'var(--text-xs)' }}>{formatPercent(coverage.covered, coverage.total)}</span> : null },
-    { id: 'http', label: 'HTTP Client', icon: httpRunning ? <LoaderCircle size={14} className="spin" /> : <Globe size={14} /> },
-    { id: 'ef', label: 'EF Core', icon: efBusy ? <LoaderCircle size={14} className="spin" /> : <DatabaseZap size={14} /> },
-    { id: 'git', label: 'Git', icon: <GitBranch size={14} /> },
-    { id: 'nuget', label: 'NuGet', icon: <Package size={14} /> },
-    {
-      id: 'problems',
-      label: 'Problems',
-      icon: <CircleX size={14} />,
-      badge: counts.errors ? <span className="badge error">{counts.errors}</span> : counts.warnings ? <span className="badge warning">{counts.warnings}</span> : null,
-    },
-    { id: 'inspections', label: 'Inspections', icon: inspecting ? <LoaderCircle size={14} className="spin" /> : <ListChecks size={14} /> },
-    { id: 'usages', label: 'Find Usages', icon: <ScanSearch size={14} /> },
-    { id: 'hierarchy', label: 'Hierarchy', icon: <Network size={14} /> },
-    { id: 'todo', label: 'TODO', icon: <ListTodo size={14} /> },
-    { id: 'bookmarks', label: 'Bookmarks', icon: <BookmarkIcon size={14} /> },
-    { id: 'services', label: 'Services', icon: <ContainerIcon size={14} /> },
-    { id: 'database', label: 'Database', icon: dbRunning ? <LoaderCircle size={14} className="spin" /> : <DatabaseIcon size={14} /> },
-    { id: 'terminal', label: 'Terminal', icon: <SquareTerminal size={14} /> },
-  ];
+  const w = toolWindow(windowOfBottom(tab));
 
   return (
     <>
@@ -89,17 +45,13 @@ export function BottomPanel() {
         onDoubleClick={() => useUi.getState().setLayout({ bottomHeight: 260 })}
       />
       <section className="bottom" style={{ height }} aria-label="Tool windows">
-        <div className="bottom-tabs" role="tablist">
-          {TABS.map((t) => (
-            <button key={t.id} role="tab" aria-label={t.label} aria-selected={tab === t.id} className={`dock-tab${tab === t.id ? ' active' : ''}`} onClick={() => useUi.getState().showBottom(t.id)}>
-              {t.icon}
-              <span>{t.label}</span>
-              {t.badge}
-            </button>
-          ))}
+        {/* the stripe on the left switches tool windows; here only the title and Hide (Rider's tool window header) */}
+        <div className="bottom-header">
+          {w && <w.Icon size={14} />}
+          <span className="bottom-title">{w?.title ?? tab}</span>
           <div className="flex-1" />
           <button className="icon-btn sm" title={`Hide (${keyLabel('Ctrl+J')})`} onClick={() => useUi.getState().toggleBottom()}>
-            <X size={14} />
+            <Minus size={14} />
           </button>
         </div>
         <div className="bottom-body">
