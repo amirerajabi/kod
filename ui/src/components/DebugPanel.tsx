@@ -169,7 +169,7 @@ function exprOf(v: Variable, parent: string | null): string {
 const PSEUDO = new Set(['Static members', 'Non-Public members', 'Raw View', 'Results View']);
 
 /** A variable; double-click (or the pencil) gives it a new value — <paramref name="parentRef"/> is the container the debugger sets it in. */
-function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent = null, parentRef }: { v: Variable; depth: number; open?: boolean; scope?: boolean; parent?: string | null; parentRef: number }) {
+export function VarNode({ v, depth, open: initiallyOpen = false, scope = false, parent = null, parentRef }: { v: Variable; depth: number; open?: boolean; scope?: boolean; parent?: string | null; parentRef: number }) {
   const [open, setOpen] = useState(initiallyOpen);
   const [children, setChildren] = useState<Variable[] | null>(null);
   const [value, setValue] = useState(v.value);

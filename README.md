@@ -68,7 +68,10 @@ engine/    Kod.Engine (ASP.NET Core minimal API on 127.0.0.1)
 - **Break on exceptions**: user-unhandled or all thrown; the pause shows the exception's type and message.
 - **Attach to Process** (Ctrl+Alt+F5): any running .NET program; stopping detaches and leaves it running.
 - Debug tool window: call stack, variables tree (double-click a value to **set** it), breakpoints, debug console
-  with expression evaluation; hover a variable while paused to see its value.
+  with expression evaluation.
+- While paused, as in Rider: hover a variable (or a selection) for its **value popup**, expandable like the Variables
+  tree; **inline values** after the lines of the current method; hover a line number for a green arrow that **runs to
+  that line**.
 - Uses [netcoredbg](https://github.com/Samsung/netcoredbg) (MIT) over the Debug Adapter Protocol; Kod downloads it
   on first use (or set `KOD_NETCOREDBG`). ASP.NET Core apps get their launch profile URL and environment.
 - **Visualizers**: a View link on collections, arrays, dictionaries and DataTables opens them as a grid (one column

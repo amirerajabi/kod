@@ -1,4 +1,26 @@
 /* Breakpoints and the execution line in the editor (debugEditor.ts). */
+
+/* inline values after the lines of the paused method (Rider) */
+.kod-inline-value {
+  color: var(--fg-muted, #8c8c8c);
+  font-style: italic;
+  opacity: 0.85;
+}
+/* a hovered line number while paused: Run to Cursor */
+.monaco-editor .line-numbers.kod-run-to {
+  color: transparent !important;
+  cursor: pointer;
+}
+.monaco-editor .line-numbers.kod-run-to::after {
+  content: '';
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  margin-top: -5px;
+  border-style: solid;
+  border-width: 5px 0 5px 8px;
+  border-color: transparent transparent transparent var(--run-to, #3fb950);
+}
 .kod-bp {
   cursor: pointer;
 }
