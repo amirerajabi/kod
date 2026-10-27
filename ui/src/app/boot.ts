@@ -26,7 +26,6 @@ import { newChat, onAiEvent, refreshKeys, useAi } from '../store/ai';
 import { discoverTests } from '../store/tests';
 import { registerTestLenses } from '../editor/testLens';
 import { loadBreakpoints, onDebugEvent } from '../store/debug';
-import { registerDebugHover } from '../editor/debugEditor';
 import { onMemoryPressure, startMemoryMonitor, syncMemorySettings } from '../store/memory';
 import { onDiagEvent } from '../store/diagnostics';
 import { installAutoSave } from './autoSave';
@@ -73,7 +72,6 @@ export async function boot(): Promise<void> {
   useUi.getState().set({ engineError: null });
   useWorkspace.setState({ meta });
   registerCSharp({ tokenTypes: meta.tokenTypes, tokenModifiers: meta.tokenModifiers });
-  registerDebugHover();
   registerTestLenses();
   registerCodeVision();
   registerPostfix();

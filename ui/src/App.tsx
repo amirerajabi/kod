@@ -22,6 +22,7 @@ import { VisualizerDialog } from './components/VisualizerDialog';
 import { MemoryDialog } from './components/MemoryPanel';
 import { RecentChanges } from './components/RecentChanges';
 import { UsagesPopup } from './components/UsagesPopup';
+import { DebugValueTip } from './components/DebugValueTip';
 import { StatusBar } from './components/StatusBar';
 import { TopBar } from './components/TopBar';
 import { Welcome } from './components/Welcome';
@@ -67,6 +68,7 @@ export default function App() {
       <MemoryDialog />
       <RecentChanges />
       <UsagesPopup />
+      <DebugValueTip />
       <NewProjectDialog />
       <ProjectPropertiesDialog />
       <RemotesDialog />

@@ -1,0 +1,23 @@
+/* The debugger's value popup over a hovered expression (DebugValueTip.tsx). */
+.debug-tip {
+  position: fixed;
+  z-index: 60;
+  min-width: 180px;
+  max-width: min(720px, calc(100vw - 16px));
+  max-height: min(420px, calc(100vh - 16px));
+  overflow: auto;
+  padding: 2px 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+  box-shadow: var(--shadow-popup);
+  font-size: var(--text-sm);
+}
+.debug-tip .result-item {
+  padding-right: var(--space-2);
+}
+.debug-tip .result-item .text {
+  max-width: 520px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

@@ -58,6 +58,18 @@ export interface Variable {
 
 export type DebugStatus = 'idle' | 'building' | 'starting' | 'running' | 'stopped';
 
+/** The value popup over a hovered expression while paused (Rider's debugger tooltip); x / y: screen point under the word. */
+export interface ValueTip {
+  x: number;
+  y: number;
+  /** Line height at the word, so the popup can go above it. */
+  height: number;
+  expression: string;
+  result: string;
+  type?: string;
+  variablesReference: number;
+}
+
 interface DebugState {
   status: DebugStatus;
   program: string | null;
@@ -75,6 +87,7 @@ interface DebugState {
   /** The breakpoint being edited (its properties dialog). */
   editing: { path: string; line: number } | null;
   attachOpen: boolean;
+  tip: ValueTip | null;
   set(p: Partial<DebugState>): void;
   toggle(path: string, line: number): void;
   setLines(path: string, bps: Breakpoint[]): void;
@@ -110,6 +123,7 @@ export const useDebug = create<DebugState>((set, get) => ({
   exceptionFilters: loadRaw<ExceptionFilter[]>('exceptionFilters', ['user-unhandled']),
   editing: null,
   attachOpen: false,
+  tip: null,
   set: (p) => set(p),
   update: (path, line, p) => {
     const cur = get().breakpoints[norm(path)]?.bps ?? [];
@@ -301,7 +315,7 @@ export async function step(command: 'continue' | 'next' | 'stepIn' | 'stepOut' |
 
 export async function stopDebugging(): Promise<void> {
   await api.post('/debug/stop').catch(() => undefined);
-  useDebug.setState({ status: 'idle', frames: [], frameId: null });
+  useDebug.setState({ status: 'idle', frames: [], frameId: null, tip: null });
 }
 
 export const debugActive = () => useDebug.getState().status !== 'idle';
@@ -317,13 +331,54 @@ export async function evaluate(expression: string, context: 'hover' | 'watch' | 
   }
 }
 
+type HoverValue = { result: string; type?: string; variablesReference: number };
+const hoverCache = new Map<string, Promise<HoverValue | null>>();
+
+/** The value of a hovered expression in the current frame, asked once per stop (the editor's value popup and the
+ *  quick info hover share it: a variable's value replaces its quick info while paused, as in Rider). */
+export function hoverValue(expression: string): Promise<HoverValue | null> {
+  const { stopSeq, frameId } = useDebug.getState();
+  const key = `${stopSeq}:${frameId}:${expression}`;
+  let p = hoverCache.get(key);
+  if (!p) {
+    if (hoverCache.size > 200) hoverCache.clear();
+    // "error CS0103: The name ... does not exist" is not a value
+    p = evaluate(expression, 'hover').then((r) => (r && !/^error\b/i.test(r.result) ? r : null));
+    hoverCache.set(key, p);
+  }
+  return p;
+}
+
+let tipTimer: ReturnType<typeof setTimeout> | undefined;
+/** The mouse is in the popup: the editor's (sometimes late) mouse leave does not close it. */
+let overTip = false;
+/** Hides the value popup after a moment, unless the mouse is in it by then. */
+export function hideValueTip(delay = 300): void {
+  clearTimeout(tipTimer);
+  if (!useDebug.getState().tip) return;
+  tipTimer = setTimeout(() => !overTip && useDebug.setState({ tip: null }), delay);
+}
+export function enterValueTip(): void {
+  overTip = true;
+  clearTimeout(tipTimer);
+}
+export function leaveValueTip(): void {
+  overTip = false;
+  hideValueTip();
+}
+export function showValueTip(tip: ValueTip): void {
+  clearTimeout(tipTimer);
+  overTip = false;
+  useDebug.setState({ tip });
+}
+
 /** Engine events. */
 export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
   switch (e.type) {
     case 'debug.state': {
       const state = e.state as string;
       const program = typeof e.program === 'string' ? basename(e.program).replace(/\.dll$/i, '') : useDebug.getState().program;
-      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program, ...(state === 'running' ? { frames: [], frameId: null, exception: null } : {}) });
+      useDebug.setState({ status: state === 'stopped' ? 'stopped' : state === 'starting' ? 'starting' : 'running', program, ...(state === 'running' ? { frames: [], frameId: null, exception: null, tip: null } : {}) });
       break;
     }
     case 'debug.stopped': {
@@ -351,7 +406,7 @@ export function onDebugEvent(e: { type: string; [k: string]: unknown }): void {
       });
       break;
     case 'debug.ended':
-      useDebug.setState({ status: 'idle', frames: [], frameId: null, exception: null });
+      useDebug.setState({ status: 'idle', frames: [], frameId: null, exception: null, tip: null });
       break;
   }
 }

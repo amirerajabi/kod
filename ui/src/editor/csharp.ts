@@ -21,6 +21,7 @@ import { applyFileEdits, useEditors } from '../store/editors';
 import { useProblems } from '../store/problems';
 import { useSettings } from '../store/settings';
 import { toast } from '../store/ui';
+import { hasDebugValueAt } from './debugEditor';
 import { allEntries, ensureModel, ensureVirtualModel, entryOfModel, getEntry, pathOfModel, type ModelEntry } from './models';
 import { monaco } from './monaco';
 import { CSHARP_SNIPPETS } from './snippets';
@@ -159,7 +160,7 @@ export function registerCSharp(legend: monaco.languages.SemanticTokensLegend): v
 
   monaco.languages.registerHoverProvider(L, {
     async provideHover(model, position, token) {
-      if (!pathOfModel(model)) return null;
+      if (!pathOfModel(model) || (await hasDebugValueAt(model, position))) return null;
       const res = await call<HoverDto>('/intel/hover', docReq(model, position), token);
       if (!res) return null;
       return { contents: [{ value: res.markdown }], range: res.range ? toRange(res.range) : undefined };
